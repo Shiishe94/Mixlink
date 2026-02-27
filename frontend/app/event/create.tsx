@@ -24,6 +24,7 @@ export default function CreateEventScreen() {
   const [loading, setLoading] = useState(false);
   const [musicStyles, setMusicStyles] = useState<string[]>([]);
   const [eventTypes, setEventTypes] = useState<string[]>([]);
+  const { alert, showAlert, hideAlert } = useNeonAlert();
 
   // Form state
   const [title, setTitle] = useState('');
