@@ -49,6 +49,7 @@ export default function RootLayout() {
         <Stack.Screen name="event/create" options={{ headerShown: false }} />
         <Stack.Screen name="booking/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="messages/[partnerId]" options={{ headerShown: false }} />
+        <Stack.Screen name="admin/index" options={{ headerShown: false }} />
       </Stack>
     </>
   );
