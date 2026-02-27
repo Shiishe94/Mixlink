@@ -20,7 +20,7 @@ import { Input } from '../../src/components/Input';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
-const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://event-djs-1.preview.emergentagent.com';
+const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://neon-dj-platform.preview.emergentagent.com';
 
 interface DashboardData {
   wallet: {

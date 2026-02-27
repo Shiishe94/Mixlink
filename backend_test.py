@@ -6,7 +6,7 @@ from datetime import datetime
 import uuid
 
 # Base URL from environment
-BASE_URL = "https://event-djs-1.preview.emergentagent.com/api"
+BASE_URL = "https://neon-dj-platform.preview.emergentagent.com/api"
 
 # Test data with unique emails
 import time
