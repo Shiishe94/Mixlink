@@ -433,7 +433,7 @@ async def search_dj_profiles(
             }
         result.append(profile_data)
     
-    return profiles
+    return result
 
 @api_router.get("/dj/profiles/{dj_id}")
 async def get_dj_profile(dj_id: str):
@@ -441,9 +441,10 @@ async def get_dj_profile(dj_id: str):
     if not profile:
         raise HTTPException(status_code=404, detail="DJ profile not found")
     
+    profile_data = serialize_doc(profile)
     user = await db.users.find_one({"id": profile["user_id"]})
     if user:
-        profile["user"] = {
+        profile_data["user"] = {
             "first_name": user.get("first_name"),
             "last_name": user.get("last_name"),
             "profile_image": user.get("profile_image"),
@@ -452,9 +453,9 @@ async def get_dj_profile(dj_id: str):
     
     # Get reviews
     reviews = await db.reviews.find({"dj_id": dj_id}).sort("created_at", -1).limit(10).to_list(10)
-    profile["recent_reviews"] = reviews
+    profile_data["recent_reviews"] = serialize_doc(reviews)
     
-    return profile
+    return profile_data
 
 # ==================== AVAILABILITY ROUTES ====================
 
@@ -491,7 +492,7 @@ async def set_availability(
         else:
             await db.availability.insert_one(slot_dict)
         
-        created_slots.append(slot_dict)
+        created_slots.append(serialize_doc(slot_dict))
     
     return created_slots
 
@@ -502,7 +503,7 @@ async def get_dj_availability(dj_id: str, month: Optional[str] = None):
         query["date"] = {"$regex": f"^{month}"}
     
     slots = await db.availability.find(query).to_list(100)
-    return slots
+    return serialize_doc(slots)
 
 @api_router.delete("/dj/availability/{slot_id}")
 async def delete_availability(slot_id: str, current_user: dict = Depends(get_current_user)):
