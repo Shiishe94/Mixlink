@@ -220,12 +220,10 @@ const styles = StyleSheet.create({
     shadowRadius: 20,
     elevation: 10,
   },
-  logoGradient: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    alignItems: 'center',
-    justifyContent: 'center',
+  logoImage: {
+    width: 140,
+    height: 140,
+    borderRadius: 20,
   },
   title: {
     fontSize: 36,
