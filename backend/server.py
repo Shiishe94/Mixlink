@@ -583,7 +583,7 @@ async def create_event(
     event_dict["created_at"] = datetime.utcnow()
     
     await db.events.insert_one(event_dict)
-    return event_dict
+    return serialize_doc(event_dict)
 
 @api_router.get("/events")
 async def get_events(
