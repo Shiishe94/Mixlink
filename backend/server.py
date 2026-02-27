@@ -806,7 +806,8 @@ async def update_booking_status(
             {"$inc": {"booking_count": 1}}
         )
     
-    return await db.bookings.find_one({"id": booking_id})
+    updated_booking = await db.bookings.find_one({"id": booking_id})
+    return serialize_doc(updated_booking)
 
 # ==================== PAYMENT ROUTES (SIMULATED) ====================
 
