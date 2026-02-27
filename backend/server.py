@@ -358,7 +358,7 @@ async def create_dj_profile(
     profile_dict["is_verified"] = False
     
     await db.dj_profiles.insert_one(profile_dict)
-    return profile_dict
+    return serialize_doc(profile_dict)
 
 @api_router.get("/dj/profile/me")
 async def get_my_dj_profile(current_user: dict = Depends(get_current_user)):
@@ -368,7 +368,7 @@ async def get_my_dj_profile(current_user: dict = Depends(get_current_user)):
     profile = await db.dj_profiles.find_one({"user_id": current_user["id"]})
     if not profile:
         raise HTTPException(status_code=404, detail="DJ profile not found")
-    return profile
+    return serialize_doc(profile)
 
 @api_router.put("/dj/profile")
 async def update_dj_profile(
@@ -385,7 +385,8 @@ async def update_dj_profile(
         {"$set": updates}
     )
     
-    return await db.dj_profiles.find_one({"user_id": current_user["id"]})
+    profile = await db.dj_profiles.find_one({"user_id": current_user["id"]})
+    return serialize_doc(profile)
 
 @api_router.get("/dj/profiles")
 async def search_dj_profiles(
@@ -420,14 +421,17 @@ async def search_dj_profiles(
     profiles = await db.dj_profiles.find(query).skip(skip).limit(limit).to_list(limit)
     
     # Add user info to each profile
+    result = []
     for profile in profiles:
+        profile_data = serialize_doc(profile)
         user = await db.users.find_one({"id": profile["user_id"]})
         if user:
-            profile["user"] = {
+            profile_data["user"] = {
                 "first_name": user.get("first_name"),
                 "last_name": user.get("last_name"),
                 "profile_image": user.get("profile_image")
             }
+        result.append(profile_data)
     
     return profiles
 
