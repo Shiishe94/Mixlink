@@ -8,9 +8,12 @@ import uuid
 # Base URL from environment
 BASE_URL = "https://event-djs-1.preview.emergentagent.com/api"
 
-# Test data
+# Test data with unique emails
+import time
+timestamp = str(int(time.time()))
+
 ORGANIZER_DATA = {
-    "email": "test_org@test.com",
+    "email": f"test_org_{timestamp}@test.com",
     "password": "test123",
     "first_name": "Marie",
     "last_name": "Leblanc",
@@ -18,7 +21,7 @@ ORGANIZER_DATA = {
 }
 
 DJ_DATA = {
-    "email": "test_dj@test.com",
+    "email": f"test_dj_{timestamp}@test.com",
     "password": "test123",
     "first_name": "Lucas",
     "last_name": "Bernard",
