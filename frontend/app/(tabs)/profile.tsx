@@ -491,6 +491,25 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           </View>
 
+          {/* DJ Wallet Link (only for DJs) */}
+          {isDJ && (
+            <View style={styles.section}>
+              <TouchableOpacity
+                style={styles.walletLink}
+                onPress={() => router.push('/dj/wallet')}
+              >
+                <View style={styles.walletLinkContent}>
+                  <Ionicons name="wallet" size={24} color="#00B894" />
+                  <View style={styles.walletLinkText}>
+                    <Text style={styles.walletLinkTitle}>Mon Portefeuille</Text>
+                    <Text style={styles.walletLinkSubtitle}>Gérer mes gains et retraits</Text>
+                  </View>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color="#636E72" />
+              </TouchableOpacity>
+            </View>
+          )}
+
           <View style={styles.bottomPadding} />
         </ScrollView>
       </KeyboardAvoidingView>
