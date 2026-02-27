@@ -1095,7 +1095,7 @@ async def match_djs_for_event(event_id: str, current_user: dict = Depends(get_cu
     # Sort by match score
     djs.sort(key=lambda x: x["match_score"], reverse=True)
     
-    return djs
+    return serialize_doc(djs)
 
 # ==================== CONFIG ROUTES ====================
 
