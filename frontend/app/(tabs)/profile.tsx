@@ -408,6 +408,30 @@ export default function ProfileScreen() {
                     onChangeText={(v) => setSocialMedia({ ...socialMedia, youtube: v })}
                     placeholder="URL de votre chaîne"
                   />
+                  <Input
+                    label="TikTok"
+                    value={socialMedia.tiktok || ''}
+                    onChangeText={(v) => setSocialMedia({ ...socialMedia, tiktok: v })}
+                    placeholder="@votrepseudo"
+                  />
+                  <Input
+                    label="Facebook"
+                    value={socialMedia.facebook || ''}
+                    onChangeText={(v) => setSocialMedia({ ...socialMedia, facebook: v })}
+                    placeholder="URL de votre page"
+                  />
+                  <Input
+                    label="Spotify"
+                    value={socialMedia.spotify || ''}
+                    onChangeText={(v) => setSocialMedia({ ...socialMedia, spotify: v })}
+                    placeholder="URL de votre profil"
+                  />
+                  <Input
+                    label="Mixcloud"
+                    value={socialMedia.mixcloud || ''}
+                    onChangeText={(v) => setSocialMedia({ ...socialMedia, mixcloud: v })}
+                    placeholder="URL de votre profil"
+                  />
 
                   <View style={styles.formButtons}>
                     {djProfile && (
