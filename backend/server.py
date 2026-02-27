@@ -252,6 +252,43 @@ class Review(ReviewCreate):
     organizer_id: str
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
+# Commission Models
+class Commission(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    booking_id: str
+    payment_id: str
+    dj_id: str
+    organizer_id: str
+    booking_amount: float
+    dj_commission: float  # Amount taken from DJ
+    organizer_commission: float  # Amount taken from Organizer
+    total_commission: float
+    dj_payout: float  # What DJ receives after commission
+    status: str = "pending"  # pending, credited, withdrawn
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+# Admin Wallet Model
+class AdminWallet(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    balance: float = 0.0
+    total_earned: float = 0.0
+    total_withdrawn: float = 0.0
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+# Withdrawal Request Model
+class WithdrawalRequest(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    amount: float
+    status: str = "pending"  # pending, processing, completed, rejected
+    bank_details: Optional[Dict[str, Any]] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    processed_at: Optional[datetime] = None
+
+# Admin Login Model
+class AdminLogin(BaseModel):
+    email: EmailStr
+    password: str
+
 # ==================== AUTHENTICATION ====================
 
 def hash_password(password: str) -> str:
