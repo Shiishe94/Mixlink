@@ -334,6 +334,13 @@ export default function CreateEventScreen() {
           <View style={styles.bottomPadding} />
         </ScrollView>
       </KeyboardAvoidingView>
+      <NeonAlert
+        visible={alert.visible}
+        type={alert.type}
+        title={alert.title}
+        message={alert.message}
+        onClose={hideAlert}
+      />
     </SafeAreaView>
   );
 }
