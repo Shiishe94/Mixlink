@@ -825,14 +825,64 @@ async def process_payment(
     if booking["status"] != "accepted":
         raise HTTPException(status_code=400, detail="Booking must be accepted before payment")
     
+    # Calculate commissions
+    booking_amount = payment_data.amount
+    dj_commission = round(booking_amount * DJ_COMMISSION_RATE, 2)
+    organizer_commission = round(booking_amount * ORGANIZER_COMMISSION_RATE, 2)
+    total_commission = dj_commission + organizer_commission
+    dj_payout = booking_amount - dj_commission
+    total_with_organizer_fee = booking_amount + organizer_commission
+    
     # Simulate payment processing
     payment_dict = payment_data.model_dump()
     payment_dict["id"] = str(uuid.uuid4())
     payment_dict["status"] = "completed"  # Simulated success
     payment_dict["transaction_id"] = f"SIM_{str(uuid.uuid4())[:8].upper()}"
     payment_dict["created_at"] = datetime.utcnow()
+    payment_dict["dj_commission"] = dj_commission
+    payment_dict["organizer_commission"] = organizer_commission
+    payment_dict["total_commission"] = total_commission
+    payment_dict["dj_payout"] = dj_payout
+    payment_dict["total_charged"] = total_with_organizer_fee
     
     await db.payments.insert_one(payment_dict)
+    
+    # Create commission record
+    commission_dict = {
+        "id": str(uuid.uuid4()),
+        "booking_id": payment_data.booking_id,
+        "payment_id": payment_dict["id"],
+        "dj_id": booking["dj_id"],
+        "organizer_id": booking["organizer_id"],
+        "booking_amount": booking_amount,
+        "dj_commission": dj_commission,
+        "organizer_commission": organizer_commission,
+        "total_commission": total_commission,
+        "dj_payout": dj_payout,
+        "status": "credited",
+        "created_at": datetime.utcnow()
+    }
+    await db.commissions.insert_one(commission_dict)
+    
+    # Update admin wallet
+    admin_wallet = await db.admin_wallet.find_one({})
+    if admin_wallet:
+        await db.admin_wallet.update_one(
+            {"id": admin_wallet["id"]},
+            {
+                "$inc": {"balance": total_commission, "total_earned": total_commission},
+                "$set": {"updated_at": datetime.utcnow()}
+            }
+        )
+    else:
+        # Create admin wallet if doesn't exist
+        await db.admin_wallet.insert_one({
+            "id": str(uuid.uuid4()),
+            "balance": total_commission,
+            "total_earned": total_commission,
+            "total_withdrawn": 0.0,
+            "updated_at": datetime.utcnow()
+        })
     
     # Update booking payment status
     await db.bookings.update_one(
@@ -841,14 +891,23 @@ async def process_payment(
             "payment_status": "paid",
             "payment_method": payment_data.payment_method,
             "status": "paid",
-            "updated_at": datetime.utcnow()
+            "updated_at": datetime.utcnow(),
+            "dj_payout": dj_payout,
+            "commission_amount": total_commission
         }}
     )
     
-    return {
+    return serialize_doc({
         "payment": payment_dict,
+        "commission": {
+            "dj_commission": dj_commission,
+            "organizer_commission": organizer_commission,
+            "total_commission": total_commission,
+            "dj_payout": dj_payout,
+            "total_charged": total_with_organizer_fee
+        },
         "message": "Payment processed successfully (SIMULATED)"
-    }
+    })
 
 # ==================== MESSAGE ROUTES ====================
 
