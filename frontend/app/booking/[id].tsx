@@ -692,4 +692,30 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
     marginBottom: 20,
   },
+  completeButton: {
+    backgroundColor: '#00B894',
+  },
+  completionNote: {
+    fontSize: 12,
+    color: '#636E72',
+    textAlign: 'center',
+    marginVertical: 12,
+    paddingHorizontal: 20,
+  },
+  completedBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 184, 148, 0.1)',
+    borderWidth: 1,
+    borderColor: '#00B894',
+    borderRadius: 12,
+    padding: 16,
+    gap: 12,
+  },
+  completedText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#00B894',
+    fontWeight: '500',
+  },
 });
