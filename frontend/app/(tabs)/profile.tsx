@@ -21,6 +21,7 @@ import { djApi, configApi } from '../../src/services/api';
 import { Button } from '../../src/components/Button';
 import { Input } from '../../src/components/Input';
 import { DJProfile, SocialMedia } from '../../src/types';
+import { NEON_COLORS } from '../../src/components/NeonBackground';
 
 export default function ProfileScreen() {
   const { user, logout, updateProfile, refreshUser } = useAuthStore();
