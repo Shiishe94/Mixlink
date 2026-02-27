@@ -641,7 +641,7 @@ async def get_my_events(current_user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=403, detail="Only organizers can access this endpoint")
     
     events = await db.events.find({"organizer_id": current_user["id"]}).sort("created_at", -1).to_list(100)
-    return events
+    return [serialize_doc(e) for e in events]
 
 @api_router.get("/events/{event_id}")
 async def get_event(event_id: str):
