@@ -273,7 +273,7 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
 
 # ==================== AUTH ROUTES ====================
 
-@api_router.post("/auth/register", response_model=TokenResponse)
+@api_router.post("/auth/register")
 async def register(user_data: UserCreate):
     # Check if email exists
     existing = await db.users.find_one({"email": user_data.email})
@@ -290,29 +290,29 @@ async def register(user_data: UserCreate):
     await db.users.insert_one(user_dict)
     
     # Remove password from response
-    del user_dict["password"]
+    user_response = serialize_doc({k: v for k, v in user_dict.items() if k != "password"})
     
     token = create_token(user_dict["id"])
-    return TokenResponse(access_token=token, user=user_dict)
+    return {"access_token": token, "token_type": "bearer", "user": user_response}
 
-@api_router.post("/auth/login", response_model=TokenResponse)
+@api_router.post("/auth/login")
 async def login(credentials: UserLogin):
     user = await db.users.find_one({"email": credentials.email})
     if not user or not verify_password(credentials.password, user["password"]):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
-    user_response = {k: v for k, v in user.items() if k != "password"}
+    user_response = serialize_doc({k: v for k, v in user.items() if k != "password"})
     token = create_token(user["id"])
-    return TokenResponse(access_token=token, user=user_response)
+    return {"access_token": token, "token_type": "bearer", "user": user_response}
 
 @api_router.get("/auth/me")
 async def get_me(current_user: dict = Depends(get_current_user)):
-    user_response = {k: v for k, v in current_user.items() if k != "password"}
+    user_response = serialize_doc({k: v for k, v in current_user.items() if k != "password"})
     # If user is DJ, get their profile
     if current_user.get("user_type") == "dj":
         dj_profile = await db.dj_profiles.find_one({"user_id": current_user["id"]})
         if dj_profile:
-            user_response["dj_profile"] = dj_profile
+            user_response["dj_profile"] = serialize_doc(dj_profile)
     return user_response
 
 @api_router.put("/auth/profile")
@@ -330,7 +330,7 @@ async def update_profile(
         )
     
     updated_user = await db.users.find_one({"id": current_user["id"]})
-    return {k: v for k, v in updated_user.items() if k != "password"}
+    return serialize_doc({k: v for k, v in updated_user.items() if k != "password"})
 
 # ==================== DJ PROFILE ROUTES ====================
 
