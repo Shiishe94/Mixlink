@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Input } from '../../src/components/Input';
 import { Button } from '../../src/components/Button';
 import { useAuthStore } from '../../src/store/authStore';
+import { NeonAlert, useNeonAlert } from '../../src/components/NeonAlert';
 
 export default function RegisterScreen() {
   const [step, setStep] = useState(1);
