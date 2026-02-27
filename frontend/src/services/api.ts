@@ -69,12 +69,23 @@ export const bookingApi = {
   getOne: (bookingId: string) => api.get(`/bookings/${bookingId}`),
   updateStatus: (bookingId: string, status: string, message?: string) =>
     api.put(`/bookings/${bookingId}/status`, { status, message }),
+  completePrestation: (bookingId: string) =>
+    api.put(`/bookings/${bookingId}/complete`),
 };
 
 // Payment API
 export const paymentApi = {
   process: (data: { booking_id: string; payment_method: string; amount: number }) =>
     api.post('/payments', data),
+};
+
+// DJ Wallet API
+export const djWalletApi = {
+  getWallet: () => api.get('/dj/wallet'),
+  getEarnings: (status?: string) => api.get('/dj/earnings', { params: { status } }),
+  requestWithdrawal: (amount: number, bankName: string, iban: string) =>
+    api.post('/dj/withdrawal', null, { params: { amount, bank_name: bankName, iban } }),
+  getWithdrawals: () => api.get('/dj/withdrawals'),
 };
 
 // Message API
