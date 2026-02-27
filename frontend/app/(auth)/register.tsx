@@ -253,6 +253,13 @@ export default function RegisterScreen() {
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
+      <NeonAlert
+        visible={alert.visible}
+        type={alert.type}
+        title={alert.title}
+        message={alert.message}
+        onClose={hideAlert}
+      />
     </SafeAreaView>
   );
 }
