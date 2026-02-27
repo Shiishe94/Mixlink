@@ -28,15 +28,25 @@ export default function RegisterScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const { register } = useAuthStore();
+  const { alert, showAlert, hideAlert } = useNeonAlert();
+
+  const validateEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
 
   const handleNext = () => {
     if (step === 1 && !userType) {
-      Alert.alert('Erreur', 'Veuillez sélectionner votre profil');
+      showAlert('warning', 'Sélection requise', 'Veuillez sélectionner si vous êtes DJ ou Organisateur.');
       return;
     }
     if (step === 2) {
-      if (!firstName || !lastName) {
-        Alert.alert('Erreur', 'Veuillez remplir votre nom');
+      if (!firstName.trim()) {
+        showAlert('warning', 'Prénom manquant', 'Veuillez entrer votre prénom.');
+        return;
+      }
+      if (!lastName.trim()) {
+        showAlert('warning', 'Nom manquant', 'Veuillez entrer votre nom de famille.');
         return;
       }
     }
@@ -44,16 +54,24 @@ export default function RegisterScreen() {
   };
 
   const handleRegister = async () => {
-    if (!email || !password) {
-      Alert.alert('Erreur', 'Veuillez remplir tous les champs');
+    if (!email.trim()) {
+      showAlert('warning', 'Email manquant', 'Veuillez entrer votre adresse email.');
       return;
     }
-    if (password !== confirmPassword) {
-      Alert.alert('Erreur', 'Les mots de passe ne correspondent pas');
+    if (!validateEmail(email.trim())) {
+      showAlert('error', 'Email invalide', 'Le format de l\'adresse email est incorrect.\nExemple : nom@domaine.com');
+      return;
+    }
+    if (!password) {
+      showAlert('warning', 'Mot de passe manquant', 'Veuillez entrer un mot de passe.');
       return;
     }
     if (password.length < 6) {
-      Alert.alert('Erreur', 'Le mot de passe doit contenir au moins 6 caractères');
+      showAlert('error', 'Mot de passe trop court', 'Le mot de passe doit contenir au moins 6 caractères.');
+      return;
+    }
+    if (password !== confirmPassword) {
+      showAlert('error', 'Mots de passe différents', 'Les deux mots de passe ne correspondent pas. Veuillez réessayer.');
       return;
     }
 
