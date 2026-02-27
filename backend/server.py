@@ -725,7 +725,7 @@ async def get_my_bookings(current_user: dict = Depends(get_current_user)):
                 "last_name": organizer.get("last_name")
             }
     
-    return bookings
+    return serialize_doc(bookings)
 
 @api_router.get("/bookings/{booking_id}")
 async def get_booking(booking_id: str, current_user: dict = Depends(get_current_user)):
