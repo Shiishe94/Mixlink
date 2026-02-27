@@ -32,6 +32,7 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const { login } = useAuthStore();
+  const { alert, showAlert, hideAlert } = useNeonAlert();
   
   const glowAnim = useSharedValue(0.5);
   
@@ -48,18 +49,50 @@ export default function LoginScreen() {
     opacity: 0.8 + glowAnim.value * 0.2,
   }));
 
+  const validateEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
   const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert('Erreur', 'Veuillez remplir tous les champs');
+    if (!email.trim() && !password.trim()) {
+      showAlert('warning', 'Champs vides', 'Veuillez entrer votre email et votre mot de passe.');
+      return;
+    }
+
+    if (!email.trim()) {
+      showAlert('warning', 'Email manquant', 'Veuillez entrer votre adresse email.');
+      return;
+    }
+
+    if (!validateEmail(email.trim())) {
+      showAlert('error', 'Email invalide', 'Le format de l\'adresse email est incorrect.\nExemple : nom@domaine.com');
+      return;
+    }
+
+    if (!password.trim()) {
+      showAlert('warning', 'Mot de passe manquant', 'Veuillez entrer votre mot de passe.');
+      return;
+    }
+
+    if (password.length < 6) {
+      showAlert('error', 'Mot de passe trop court', 'Le mot de passe doit contenir au moins 6 caractères.');
       return;
     }
 
     setLoading(true);
     try {
-      await login(email, password);
+      await login(email.trim(), password);
       router.replace('/(tabs)');
     } catch (error: any) {
-      Alert.alert('Erreur', error.message || 'Connexion échouée');
+      const msg = error.message || '';
+      if (msg.toLowerCase().includes('password') || msg.toLowerCase().includes('mot de passe') || msg.toLowerCase().includes('invalid') || msg.toLowerCase().includes('incorrect')) {
+        showAlert('error', 'Identifiants incorrects', 'L\'email ou le mot de passe est incorrect. Veuillez réessayer.');
+      } else if (msg.toLowerCase().includes('not found') || msg.toLowerCase().includes('introuvable')) {
+        showAlert('error', 'Compte introuvable', 'Aucun compte n\'est associé à cette adresse email.');
+      } else {
+        showAlert('error', 'Connexion échouée', msg || 'Une erreur est survenue. Veuillez réessayer.');
+      }
     } finally {
       setLoading(false);
     }
