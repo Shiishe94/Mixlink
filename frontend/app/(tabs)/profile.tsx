@@ -474,6 +474,23 @@ export default function ProfileScreen() {
             </View>
           )}
 
+          {/* Admin Panel Link */}
+          <View style={styles.section}>
+            <TouchableOpacity
+              style={styles.adminLink}
+              onPress={() => router.push('/admin')}
+            >
+              <View style={styles.adminLinkContent}>
+                <Ionicons name="shield-checkmark" size={24} color="#6C5CE7" />
+                <View style={styles.adminLinkText}>
+                  <Text style={styles.adminLinkTitle}>Administration</Text>
+                  <Text style={styles.adminLinkSubtitle}>Gérer les commissions et retraits</Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#636E72" />
+            </TouchableOpacity>
+          </View>
+
           <View style={styles.bottomPadding} />
         </ScrollView>
       </KeyboardAvoidingView>
