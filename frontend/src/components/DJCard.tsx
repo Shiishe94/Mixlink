@@ -1,7 +1,9 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { DJProfile } from '../types';
+import { NEON_COLORS } from './NeonBackground';
 
 interface DJCardProps {
   dj: DJProfile;
@@ -17,7 +19,7 @@ export const DJCard: React.FC<DJCardProps> = ({ dj, onPress }) => {
           key={i}
           name={i < Math.floor(rating) ? 'star' : 'star-outline'}
           size={14}
-          color="#F1C40F"
+          color={NEON_COLORS.warning}
         />
       ));
   };
@@ -31,21 +33,28 @@ export const DJCard: React.FC<DJCardProps> = ({ dj, onPress }) => {
             style={styles.image}
           />
         ) : (
-          <View style={styles.placeholderImage}>
-            <Ionicons name="person" size={40} color="#636E72" />
-          </View>
+          <LinearGradient
+            colors={[NEON_COLORS.card, NEON_COLORS.backgroundLight]}
+            style={styles.placeholderImage}
+          >
+            <Ionicons name="person" size={40} color={NEON_COLORS.textMuted} />
+          </LinearGradient>
         )}
         {dj.is_verified && (
           <View style={styles.verifiedBadge}>
-            <Ionicons name="checkmark-circle" size={20} color="#00B894" />
+            <Ionicons name="checkmark-circle" size={20} color={NEON_COLORS.success} />
           </View>
         )}
+        <LinearGradient
+          colors={['transparent', 'rgba(10, 10, 15, 0.9)']}
+          style={styles.imageOverlay}
+        />
       </View>
       
       <View style={styles.content}>
         <Text style={styles.artistName} numberOfLines={1}>{dj.artist_name}</Text>
         <Text style={styles.city}>
-          <Ionicons name="location" size={12} color="#636E72" /> {dj.city}
+          <Ionicons name="location" size={12} color={NEON_COLORS.cyan} /> {dj.city}
         </Text>
         
         <View style={styles.ratingRow}>
@@ -57,9 +66,15 @@ export const DJCard: React.FC<DJCardProps> = ({ dj, onPress }) => {
         
         <View style={styles.stylesContainer}>
           {dj.music_styles.slice(0, 2).map((style, index) => (
-            <View key={index} style={styles.styleTag}>
+            <LinearGradient
+              key={index}
+              colors={index === 0 ? [NEON_COLORS.cyan, NEON_COLORS.magenta] : [NEON_COLORS.magenta, NEON_COLORS.pink]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.styleTag}
+            >
               <Text style={styles.styleText}>{style}</Text>
-            </View>
+            </LinearGradient>
           ))}
           {dj.music_styles.length > 2 && (
             <Text style={styles.moreStyles}>+{dj.music_styles.length - 2}</Text>
@@ -67,7 +82,7 @@ export const DJCard: React.FC<DJCardProps> = ({ dj, onPress }) => {
         </View>
         
         <View style={styles.footer}>
-          <Text style={styles.rate}>{dj.hourly_rate}€/h</Text>
+          <Text style={styles.rate}>{dj.hourly_rate}€<Text style={styles.rateLabel}>/h</Text></Text>
           <Text style={styles.experience}>{dj.experience_years} ans exp.</Text>
         </View>
       </View>
@@ -77,10 +92,17 @@ export const DJCard: React.FC<DJCardProps> = ({ dj, onPress }) => {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#1E1E1E',
-    borderRadius: 16,
+    backgroundColor: NEON_COLORS.card,
+    borderRadius: 20,
     overflow: 'hidden',
     marginBottom: 16,
+    borderWidth: 1,
+    borderColor: NEON_COLORS.cardBorder,
+    shadowColor: NEON_COLORS.cyan,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 3,
   },
   imageContainer: {
     position: 'relative',
@@ -89,35 +111,48 @@ const styles = StyleSheet.create({
   image: {
     width: '100%',
     height: '100%',
-    backgroundColor: '#2D3436',
+    backgroundColor: NEON_COLORS.backgroundLight,
   },
   placeholderImage: {
     width: '100%',
     height: '100%',
-    backgroundColor: '#2D3436',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  imageOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 60,
   },
   verifiedBadge: {
     position: 'absolute',
     top: 12,
     right: 12,
-    backgroundColor: '#1E1E1E',
+    backgroundColor: NEON_COLORS.card,
     borderRadius: 12,
     padding: 4,
+    shadowColor: NEON_COLORS.success,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6,
+    shadowRadius: 8,
   },
   content: {
     padding: 16,
   },
   artistName: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '700',
     color: '#fff',
     marginBottom: 4,
+    textShadowColor: NEON_COLORS.cyan,
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 3,
   },
   city: {
     fontSize: 14,
-    color: '#636E72',
+    color: NEON_COLORS.textSecondary,
     marginBottom: 8,
   },
   ratingRow: {
@@ -131,7 +166,7 @@ const styles = StyleSheet.create({
   },
   ratingText: {
     fontSize: 14,
-    color: '#B2BEC3',
+    color: NEON_COLORS.textSecondary,
   },
   stylesContainer: {
     flexDirection: 'row',
@@ -140,19 +175,18 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   styleTag: {
-    backgroundColor: '#6C5CE7',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 14,
   },
   styleText: {
     fontSize: 12,
     color: '#fff',
-    fontWeight: '500',
+    fontWeight: '600',
   },
   moreStyles: {
     fontSize: 12,
-    color: '#636E72',
+    color: NEON_COLORS.textMuted,
     alignSelf: 'center',
   },
   footer: {
@@ -161,12 +195,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   rate: {
-    fontSize: 18,
+    fontSize: 22,
     fontWeight: '700',
-    color: '#00B894',
+    color: NEON_COLORS.success,
+    textShadowColor: NEON_COLORS.success,
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 5,
+  },
+  rateLabel: {
+    fontSize: 14,
+    fontWeight: '400',
   },
   experience: {
     fontSize: 14,
-    color: '#636E72',
+    color: NEON_COLORS.textMuted,
   },
 });
