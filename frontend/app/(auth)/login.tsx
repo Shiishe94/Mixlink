@@ -112,14 +112,11 @@ export default function LoginScreen() {
           >
             <View style={styles.header}>
               <Animated.View style={[styles.logoContainer, glowStyle]}>
-                <LinearGradient
-                  colors={[NEON_COLORS.cyan, NEON_COLORS.magenta]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.logoGradient}
-                >
-                  <Ionicons name="disc" size={50} color="#fff" />
-                </LinearGradient>
+                <Image
+                  source={{ uri: 'https://customer-assets.emergentagent.com/job_81ff48f5-d5df-4c9e-b7e3-186c0149c723/artifacts/d9apiwuf_A93D7E82-3928-43DA-B03F-A012568E9B90.png' }}
+                  style={styles.logoImage}
+                  resizeMode="contain"
+                />
               </Animated.View>
               <Text style={styles.title}>DJ Booking</Text>
               <Text style={styles.subtitle}>Trouvez le DJ parfait pour vos événements</Text>
