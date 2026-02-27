@@ -1,0 +1,366 @@
+import React, { useEffect, useState, useRef } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  TextInput,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  Image,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { router, useLocalSearchParams } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { messageApi, authApi } from '../../src/services/api';
+import { Message } from '../../src/types';
+import { useAuthStore } from '../../src/store/authStore';
+import { format, isToday, isYesterday } from 'date-fns';
+import { fr } from 'date-fns/locale';
+
+export default function ChatScreen() {
+  const { partnerId } = useLocalSearchParams<{ partnerId: string }>();
+  const { user } = useAuthStore();
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [newMessage, setNewMessage] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [partnerInfo, setPartnerInfo] = useState<any>(null);
+  const scrollViewRef = useRef<ScrollView>(null);
+
+  useEffect(() => {
+    loadMessages();
+    // Poll for new messages every 5 seconds
+    const interval = setInterval(loadMessages, 5000);
+    return () => clearInterval(interval);
+  }, [partnerId]);
+
+  const loadMessages = async () => {
+    try {
+      const res = await messageApi.getMessages(partnerId!);
+      setMessages(res.data);
+      
+      // Get partner info from conversations
+      const convRes = await messageApi.getConversations();
+      const partner = convRes.data.find((c: any) => c.partner_id === partnerId);
+      if (partner) {
+        setPartnerInfo({
+          name: partner.partner_name,
+          image: partner.partner_image,
+        });
+      }
+    } catch (error) {
+      console.error('Error loading messages:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSend = async () => {
+    if (!newMessage.trim()) return;
+
+    setSending(true);
+    try {
+      await messageApi.send({
+        receiver_id: partnerId!,
+        content: newMessage.trim(),
+      });
+      setNewMessage('');
+      await loadMessages();
+      scrollViewRef.current?.scrollToEnd({ animated: true });
+    } catch (error) {
+      console.error('Error sending message:', error);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const formatMessageTime = (dateString: string) => {
+    const date = new Date(dateString);
+    return format(date, 'HH:mm');
+  };
+
+  const formatDateHeader = (dateString: string) => {
+    const date = new Date(dateString);
+    if (isToday(date)) return "Aujourd'hui";
+    if (isYesterday(date)) return 'Hier';
+    return format(date, 'EEEE d MMMM', { locale: fr });
+  };
+
+  const renderMessages = () => {
+    let lastDate = '';
+    return messages.map((message, index) => {
+      const messageDate = message.created_at.split('T')[0];
+      const showDateHeader = messageDate !== lastDate;
+      lastDate = messageDate;
+
+      const isMe = message.sender_id === user?.id;
+
+      return (
+        <View key={message.id}>
+          {showDateHeader && (
+            <View style={styles.dateHeader}>
+              <Text style={styles.dateHeaderText}>
+                {formatDateHeader(message.created_at)}
+              </Text>
+            </View>
+          )}
+          <View style={[styles.messageContainer, isMe && styles.messageContainerMe]}>
+            <View style={[styles.messageBubble, isMe ? styles.messageBubbleMe : styles.messageBubbleOther]}>
+              <Text style={[styles.messageText, isMe && styles.messageTextMe]}>
+                {message.content}
+              </Text>
+              <Text style={[styles.messageTime, isMe && styles.messageTimeMe]}>
+                {formatMessageTime(message.created_at)}
+              </Text>
+            </View>
+          </View>
+        </View>
+      );
+    });
+  };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#6C5CE7" />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.keyboardView}
+        keyboardVerticalOffset={0}
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+            <Ionicons name="arrow-back" size={24} color="#fff" />
+          </TouchableOpacity>
+          <View style={styles.headerInfo}>
+            <View style={styles.headerAvatar}>
+              {partnerInfo?.image ? (
+                <Image
+                  source={{ uri: `data:image/jpeg;base64,${partnerInfo.image}` }}
+                  style={styles.headerAvatarImage}
+                />
+              ) : (
+                <Ionicons name="person" size={20} color="#636E72" />
+              )}
+            </View>
+            <Text style={styles.headerName} numberOfLines={1}>
+              {partnerInfo?.name || 'Conversation'}
+            </Text>
+          </View>
+          <View style={styles.headerRight} />
+        </View>
+
+        {/* Messages */}
+        <ScrollView
+          ref={scrollViewRef}
+          style={styles.messagesContainer}
+          contentContainerStyle={styles.messagesContent}
+          showsVerticalScrollIndicator={false}
+          onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: false })}
+        >
+          {messages.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Ionicons name="chatbubbles-outline" size={60} color="#636E72" />
+              <Text style={styles.emptyText}>Commencez la conversation</Text>
+            </View>
+          ) : (
+            renderMessages()
+          )}
+        </ScrollView>
+
+        {/* Input */}
+        <View style={styles.inputContainer}>
+          <TextInput
+            style={styles.input}
+            value={newMessage}
+            onChangeText={setNewMessage}
+            placeholder="Votre message..."
+            placeholderTextColor="#636E72"
+            multiline
+            maxLength={1000}
+          />
+          <TouchableOpacity
+            style={[styles.sendButton, !newMessage.trim() && styles.sendButtonDisabled]}
+            onPress={handleSend}
+            disabled={!newMessage.trim() || sending}
+          >
+            {sending ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Ionicons name="send" size={20} color="#fff" />
+            )}
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#0c0c0c',
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  keyboardView: {
+    flex: 1,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1E1E1E',
+  },
+  backButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#1E1E1E',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerInfo: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 12,
+  },
+  headerAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#1E1E1E',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+    overflow: 'hidden',
+  },
+  headerAvatarImage: {
+    width: '100%',
+    height: '100%',
+  },
+  headerName: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#fff',
+    flex: 1,
+  },
+  headerRight: {
+    width: 44,
+  },
+  messagesContainer: {
+    flex: 1,
+  },
+  messagesContent: {
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+  },
+  emptyState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#636E72',
+    marginTop: 16,
+  },
+  dateHeader: {
+    alignItems: 'center',
+    marginVertical: 16,
+  },
+  dateHeaderText: {
+    fontSize: 12,
+    color: '#636E72',
+    backgroundColor: '#1E1E1E',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  messageContainer: {
+    marginBottom: 8,
+    alignItems: 'flex-start',
+  },
+  messageContainerMe: {
+    alignItems: 'flex-end',
+  },
+  messageBubble: {
+    maxWidth: '80%',
+    padding: 12,
+    borderRadius: 16,
+  },
+  messageBubbleMe: {
+    backgroundColor: '#6C5CE7',
+    borderBottomRightRadius: 4,
+  },
+  messageBubbleOther: {
+    backgroundColor: '#1E1E1E',
+    borderBottomLeftRadius: 4,
+  },
+  messageText: {
+    fontSize: 16,
+    color: '#fff',
+    lineHeight: 22,
+  },
+  messageTextMe: {
+    color: '#fff',
+  },
+  messageTime: {
+    fontSize: 10,
+    color: '#636E72',
+    marginTop: 4,
+    alignSelf: 'flex-end',
+  },
+  messageTimeMe: {
+    color: 'rgba(255,255,255,0.7)',
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#1E1E1E',
+    gap: 12,
+  },
+  input: {
+    flex: 1,
+    backgroundColor: '#1E1E1E',
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: '#fff',
+    maxHeight: 120,
+  },
+  sendButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#6C5CE7',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sendButtonDisabled: {
+    backgroundColor: '#2D3436',
+  },
+});
