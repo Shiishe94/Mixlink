@@ -122,6 +122,31 @@ export default function BookingDetailScreen() {
     }
   };
 
+  const handleCompletePrestation = async () => {
+    Alert.alert(
+      'Confirmer la prestation',
+      'Confirmez-vous que la prestation a bien eu lieu ? Le paiement sera libéré au DJ.',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Confirmer',
+          onPress: async () => {
+            setActionLoading(true);
+            try {
+              await bookingApi.completePrestation(id!);
+              await loadBooking();
+              Alert.alert('Succès', 'Prestation confirmée. Le DJ peut maintenant retirer ses fonds.');
+            } catch (error: any) {
+              Alert.alert('Erreur', error.response?.data?.detail || 'Impossible de confirmer');
+            } finally {
+              setActionLoading(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const handleMessage = () => {
     if (!booking) return;
     const partnerId = isDJ ? booking.organizer_id : booking.dj?.user?.first_name ? booking.dj_id : null;
