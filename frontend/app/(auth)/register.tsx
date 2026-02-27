@@ -121,6 +121,11 @@ export default function RegisterScreen() {
         >
           {step === 1 && (
             <View style={styles.stepContent}>
+              <Image
+                source={{ uri: 'https://customer-assets.emergentagent.com/job_81ff48f5-d5df-4c9e-b7e3-186c0149c723/artifacts/d9apiwuf_A93D7E82-3928-43DA-B03F-A012568E9B90.png' }}
+                style={styles.logoImage}
+                resizeMode="contain"
+              />
               <Text style={styles.title}>Qui êtes-vous ?</Text>
               <Text style={styles.subtitle}>Sélectionnez votre profil</Text>
 
