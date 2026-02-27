@@ -925,9 +925,48 @@ async def process_payment(
             "status": "paid",
             "updated_at": datetime.utcnow(),
             "dj_payout": dj_payout,
-            "commission_amount": total_commission
+            "commission_amount": total_commission,
+            "prestation_completed": False  # Waiting for organizer confirmation
         }}
     )
+    
+    # Get event date for the DJ earning record
+    event = await db.events.find_one({"id": booking["event_id"]})
+    event_date = event.get("date", "") if event else ""
+    
+    # Create DJ earning record (pending until prestation is completed)
+    dj_earning = {
+        "id": str(uuid.uuid4()),
+        "dj_id": booking["dj_id"],
+        "booking_id": payment_data.booking_id,
+        "amount": dj_payout,
+        "status": "pending",  # Waiting for organizer to confirm prestation
+        "event_date": event_date,
+        "released_at": None,
+        "created_at": datetime.utcnow()
+    }
+    await db.dj_earnings.insert_one(dj_earning)
+    
+    # Update or create DJ wallet (add to pending balance)
+    dj_wallet = await db.dj_wallets.find_one({"dj_id": booking["dj_id"]})
+    if dj_wallet:
+        await db.dj_wallets.update_one(
+            {"dj_id": booking["dj_id"]},
+            {
+                "$inc": {"pending_balance": dj_payout, "total_earned": dj_payout},
+                "$set": {"updated_at": datetime.utcnow()}
+            }
+        )
+    else:
+        await db.dj_wallets.insert_one({
+            "id": str(uuid.uuid4()),
+            "dj_id": booking["dj_id"],
+            "pending_balance": dj_payout,
+            "available_balance": 0.0,
+            "total_earned": dj_payout,
+            "total_withdrawn": 0.0,
+            "updated_at": datetime.utcnow()
+        })
     
     return serialize_doc({
         "payment": payment_dict,
@@ -938,8 +977,204 @@ async def process_payment(
             "dj_payout": dj_payout,
             "total_charged": total_with_organizer_fee
         },
-        "message": "Payment processed successfully (SIMULATED)"
+        "message": "Payment processed successfully (SIMULATED). DJ funds will be released after prestation confirmation."
     })
+
+# ==================== PRESTATION COMPLETION ROUTES ====================
+
+@api_router.put("/bookings/{booking_id}/complete")
+async def complete_prestation(
+    booking_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Organizer confirms that the prestation has been completed, releasing DJ funds"""
+    if current_user.get("user_type") != "organizer":
+        raise HTTPException(status_code=403, detail="Only organizers can confirm prestation completion")
+    
+    booking = await db.bookings.find_one({"id": booking_id})
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    
+    if booking["organizer_id"] != current_user["id"]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    if booking["status"] != "paid":
+        raise HTTPException(status_code=400, detail="Booking must be paid before confirming completion")
+    
+    if booking.get("prestation_completed"):
+        raise HTTPException(status_code=400, detail="Prestation already confirmed as completed")
+    
+    # Update booking status
+    await db.bookings.update_one(
+        {"id": booking_id},
+        {"$set": {
+            "status": "completed",
+            "prestation_completed": True,
+            "completed_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow()
+        }}
+    )
+    
+    # Release DJ funds - move from pending to available
+    dj_payout = booking.get("dj_payout", 0)
+    
+    await db.dj_wallets.update_one(
+        {"dj_id": booking["dj_id"]},
+        {
+            "$inc": {"pending_balance": -dj_payout, "available_balance": dj_payout},
+            "$set": {"updated_at": datetime.utcnow()}
+        }
+    )
+    
+    # Update DJ earning status
+    await db.dj_earnings.update_one(
+        {"booking_id": booking_id},
+        {"$set": {
+            "status": "released",
+            "released_at": datetime.utcnow()
+        }}
+    )
+    
+    # Update event status
+    await db.events.update_one(
+        {"id": booking["event_id"]},
+        {"$set": {"status": "completed"}}
+    )
+    
+    return serialize_doc({
+        "message": "Prestation confirmed as completed. DJ funds have been released.",
+        "dj_payout_released": dj_payout
+    })
+
+# ==================== DJ WALLET ROUTES ====================
+
+@api_router.get("/dj/wallet")
+async def get_dj_wallet(current_user: dict = Depends(get_current_user)):
+    """Get DJ's wallet with pending and available balances"""
+    if current_user.get("user_type") != "dj":
+        raise HTTPException(status_code=403, detail="Only DJs can access wallet")
+    
+    dj_profile = await db.dj_profiles.find_one({"user_id": current_user["id"]})
+    if not dj_profile:
+        raise HTTPException(status_code=404, detail="DJ profile not found")
+    
+    wallet = await db.dj_wallets.find_one({"dj_id": dj_profile["id"]})
+    if not wallet:
+        wallet = {
+            "dj_id": dj_profile["id"],
+            "pending_balance": 0.0,
+            "available_balance": 0.0,
+            "total_earned": 0.0,
+            "total_withdrawn": 0.0
+        }
+    
+    # Get pending earnings details
+    pending_earnings = await db.dj_earnings.find({
+        "dj_id": dj_profile["id"],
+        "status": "pending"
+    }).to_list(100)
+    
+    # Enrich with booking info
+    for earning in pending_earnings:
+        booking = await db.bookings.find_one({"id": earning["booking_id"]})
+        if booking:
+            event = await db.events.find_one({"id": booking.get("event_id")})
+            earning["event_title"] = event.get("title") if event else "N/A"
+    
+    return serialize_doc({
+        "wallet": wallet,
+        "pending_earnings": pending_earnings
+    })
+
+@api_router.get("/dj/earnings")
+async def get_dj_earnings(
+    current_user: dict = Depends(get_current_user),
+    status: Optional[str] = None,
+    limit: int = 50
+):
+    """Get DJ's earning history"""
+    if current_user.get("user_type") != "dj":
+        raise HTTPException(status_code=403, detail="Only DJs can access earnings")
+    
+    dj_profile = await db.dj_profiles.find_one({"user_id": current_user["id"]})
+    if not dj_profile:
+        raise HTTPException(status_code=404, detail="DJ profile not found")
+    
+    query = {"dj_id": dj_profile["id"]}
+    if status:
+        query["status"] = status
+    
+    earnings = await db.dj_earnings.find(query).sort("created_at", -1).limit(limit).to_list(limit)
+    
+    # Enrich with booking/event info
+    for earning in earnings:
+        booking = await db.bookings.find_one({"id": earning["booking_id"]})
+        if booking:
+            event = await db.events.find_one({"id": booking.get("event_id")})
+            earning["event_title"] = event.get("title") if event else "N/A"
+            organizer = await db.users.find_one({"id": booking.get("organizer_id")})
+            if organizer:
+                earning["organizer_name"] = f"{organizer.get('first_name', '')} {organizer.get('last_name', '')}"
+    
+    return serialize_doc(earnings)
+
+@api_router.post("/dj/withdrawal")
+async def request_dj_withdrawal(
+    amount: float,
+    bank_name: str,
+    iban: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """DJ requests withdrawal of available funds"""
+    if current_user.get("user_type") != "dj":
+        raise HTTPException(status_code=403, detail="Only DJs can request withdrawals")
+    
+    dj_profile = await db.dj_profiles.find_one({"user_id": current_user["id"]})
+    if not dj_profile:
+        raise HTTPException(status_code=404, detail="DJ profile not found")
+    
+    wallet = await db.dj_wallets.find_one({"dj_id": dj_profile["id"]})
+    if not wallet or wallet.get("available_balance", 0) < amount:
+        raise HTTPException(status_code=400, detail="Insufficient available balance. Pending funds cannot be withdrawn until prestation is confirmed.")
+    
+    # Create withdrawal request
+    withdrawal = {
+        "id": str(uuid.uuid4()),
+        "dj_id": dj_profile["id"],
+        "amount": amount,
+        "status": "pending",
+        "bank_details": {"bank_name": bank_name, "iban": iban},
+        "created_at": datetime.utcnow(),
+        "processed_at": None
+    }
+    await db.dj_withdrawals.insert_one(withdrawal)
+    
+    # Update wallet
+    await db.dj_wallets.update_one(
+        {"dj_id": dj_profile["id"]},
+        {
+            "$inc": {"available_balance": -amount, "total_withdrawn": amount},
+            "$set": {"updated_at": datetime.utcnow()}
+        }
+    )
+    
+    return serialize_doc({
+        "withdrawal": withdrawal,
+        "message": "Withdrawal request submitted. Will be processed within 3-5 business days."
+    })
+
+@api_router.get("/dj/withdrawals")
+async def get_dj_withdrawals(current_user: dict = Depends(get_current_user)):
+    """Get DJ's withdrawal history"""
+    if current_user.get("user_type") != "dj":
+        raise HTTPException(status_code=403, detail="Only DJs can access withdrawals")
+    
+    dj_profile = await db.dj_profiles.find_one({"user_id": current_user["id"]})
+    if not dj_profile:
+        raise HTTPException(status_code=404, detail="DJ profile not found")
+    
+    withdrawals = await db.dj_withdrawals.find({"dj_id": dj_profile["id"]}).sort("created_at", -1).to_list(50)
+    return serialize_doc(withdrawals)
 
 # ==================== MESSAGE ROUTES ====================
 
