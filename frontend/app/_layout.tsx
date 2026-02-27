@@ -3,6 +3,7 @@ import { Stack, router, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { useAuthStore } from '../src/store/authStore';
+import { NEON_COLORS } from '../src/components/NeonBackground';
 
 export default function RootLayout() {
   const { isLoading, isAuthenticated, loadUser } = useAuthStore();
@@ -27,7 +28,7 @@ export default function RootLayout() {
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#6C5CE7" />
+        <ActivityIndicator size="large" color={NEON_COLORS.cyan} />
       </View>
     );
   }
@@ -38,7 +39,7 @@ export default function RootLayout() {
       <Stack
         screenOptions={{
           headerShown: false,
-          contentStyle: { backgroundColor: '#0c0c0c' },
+          contentStyle: { backgroundColor: NEON_COLORS.background },
           animation: 'slide_from_right',
         }}
       >
@@ -59,7 +60,7 @@ export default function RootLayout() {
 const styles = StyleSheet.create({
   loadingContainer: {
     flex: 1,
-    backgroundColor: '#0c0c0c',
+    backgroundColor: NEON_COLORS.background,
     alignItems: 'center',
     justifyContent: 'center',
   },
