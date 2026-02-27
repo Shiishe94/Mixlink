@@ -87,7 +87,12 @@ export default function RegisterScreen() {
       });
       router.replace('/(tabs)');
     } catch (error: any) {
-      Alert.alert('Erreur', error.message || 'Inscription échouée');
+      const msg = error.message || '';
+      if (msg.toLowerCase().includes('already') || msg.toLowerCase().includes('existe') || msg.toLowerCase().includes('duplicate')) {
+        showAlert('error', 'Email déjà utilisé', 'Un compte existe déjà avec cette adresse email. Essayez de vous connecter.');
+      } else {
+        showAlert('error', 'Inscription échouée', msg || 'Une erreur est survenue lors de l\'inscription. Veuillez réessayer.');
+      }
     } finally {
       setLoading(false);
     }
