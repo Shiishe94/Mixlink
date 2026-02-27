@@ -567,6 +567,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  tiktokButton: {
+    backgroundColor: '#010101',
+    borderWidth: 1,
+    borderColor: '#2D3436',
+  },
   noReviews: {
     fontSize: 14,
     color: '#636E72',
