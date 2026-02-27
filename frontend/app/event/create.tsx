@@ -65,9 +65,61 @@ export default function CreateEventScreen() {
   };
 
   const handleCreate = async () => {
-    // Validation
-    if (!title || !description || !eventType || !date || !startTime || !endTime || !city || !budgetMin || !budgetMax || selectedStyles.length === 0) {
-      Alert.alert('Erreur', 'Veuillez remplir tous les champs obligatoires');
+    // Validation détaillée
+    if (!title.trim()) {
+      showAlert('warning', 'Titre manquant', 'Veuillez entrer le titre de votre événement.');
+      return;
+    }
+    if (!description.trim()) {
+      showAlert('warning', 'Description manquante', 'Veuillez ajouter une description pour votre événement.');
+      return;
+    }
+    if (!eventType) {
+      showAlert('warning', 'Type d\'événement', 'Veuillez sélectionner le type d\'événement.');
+      return;
+    }
+    if (!date.trim()) {
+      showAlert('warning', 'Date manquante', 'Veuillez indiquer la date de l\'événement.');
+      return;
+    }
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(date.trim())) {
+      showAlert('error', 'Format de date invalide', 'La date doit être au format AAAA-MM-JJ.\nExemple : 2025-07-15');
+      return;
+    }
+    if (!startTime.trim() || !endTime.trim()) {
+      showAlert('warning', 'Horaires manquants', 'Veuillez indiquer l\'heure de début et de fin.');
+      return;
+    }
+    const timeRegex = /^\d{2}:\d{2}$/;
+    if (!timeRegex.test(startTime.trim()) || !timeRegex.test(endTime.trim())) {
+      showAlert('error', 'Format d\'heure invalide', 'Les horaires doivent être au format HH:MM.\nExemple : 20:00');
+      return;
+    }
+    if (!city.trim()) {
+      showAlert('warning', 'Ville manquante', 'Veuillez indiquer la ville de l\'événement.');
+      return;
+    }
+    if (!budgetMin.trim() || !budgetMax.trim()) {
+      showAlert('warning', 'Budget manquant', 'Veuillez indiquer le budget minimum et maximum.');
+      return;
+    }
+    const budgetMinVal = parseFloat(budgetMin);
+    const budgetMaxVal = parseFloat(budgetMax);
+    if (isNaN(budgetMinVal) || isNaN(budgetMaxVal)) {
+      showAlert('error', 'Budget invalide', 'Le budget doit être un nombre valide.');
+      return;
+    }
+    if (budgetMinVal <= 0 || budgetMaxVal <= 0) {
+      showAlert('error', 'Budget invalide', 'Le budget doit être supérieur à 0€.');
+      return;
+    }
+    if (budgetMinVal > budgetMaxVal) {
+      showAlert('error', 'Budget incohérent', 'Le budget minimum ne peut pas être supérieur au budget maximum.');
+      return;
+    }
+    if (selectedStyles.length === 0) {
+      showAlert('warning', 'Styles musicaux', 'Veuillez sélectionner au moins un style musical.');
       return;
     }
 
@@ -82,18 +134,18 @@ export default function CreateEventScreen() {
         end_time: endTime,
         location,
         city,
-        budget_min: parseFloat(budgetMin),
-        budget_max: parseFloat(budgetMax),
+        budget_min: budgetMinVal,
+        budget_max: budgetMaxVal,
         music_styles: selectedStyles,
         guest_count: parseInt(guestCount) || 0,
         special_requirements: specialRequirements,
       });
 
-      Alert.alert('Succès', 'Événement créé !', [
-        { text: 'OK', onPress: () => router.back() },
-      ]);
+      showAlert('success', 'Événement créé !', 'Votre événement a été créé avec succès. Les DJs pourront maintenant le consulter.');
+      setTimeout(() => router.back(), 2000);
     } catch (error: any) {
-      Alert.alert('Erreur', error.response?.data?.detail || 'Impossible de créer l\'\'événement');
+      const msg = error.response?.data?.detail || '';
+      showAlert('error', 'Erreur de création', msg || 'Impossible de créer l\'événement. Veuillez réessayer.');
     } finally {
       setLoading(false);
     }
