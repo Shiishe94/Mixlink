@@ -264,7 +264,28 @@ class Commission(BaseModel):
     organizer_commission: float  # Amount taken from Organizer
     total_commission: float
     dj_payout: float  # What DJ receives after commission
-    status: str = "pending"  # pending, credited, withdrawn
+    status: str = "pending"  # pending, released, withdrawn
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+# DJ Wallet Model - Funds held until prestation is completed
+class DJWallet(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    dj_id: str
+    pending_balance: float = 0.0  # Funds held until prestation completion
+    available_balance: float = 0.0  # Funds available for withdrawal
+    total_earned: float = 0.0
+    total_withdrawn: float = 0.0
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+# DJ Earning Record
+class DJEarning(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    dj_id: str
+    booking_id: str
+    amount: float
+    status: str = "pending"  # pending (waiting for completion), released, withdrawn
+    event_date: str
+    released_at: Optional[datetime] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 # Admin Wallet Model
@@ -278,6 +299,16 @@ class AdminWallet(BaseModel):
 # Withdrawal Request Model
 class WithdrawalRequest(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    amount: float
+    status: str = "pending"  # pending, processing, completed, rejected
+    bank_details: Optional[Dict[str, Any]] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    processed_at: Optional[datetime] = None
+
+# DJ Withdrawal Request Model
+class DJWithdrawalRequest(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    dj_id: str
     amount: float
     status: str = "pending"  # pending, processing, completed, rejected
     bank_details: Optional[Dict[str, Any]] = None
