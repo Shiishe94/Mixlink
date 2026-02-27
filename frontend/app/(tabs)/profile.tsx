@@ -543,6 +543,33 @@ export default function ProfileScreen() {
           <View style={styles.bottomPadding} />
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Modal de confirmation de déconnexion */}
+      {showLogoutConfirm && (
+        <View style={styles.logoutOverlay}>
+          <View style={styles.logoutModal}>
+            <View style={styles.logoutIconContainer}>
+              <Ionicons name="log-out-outline" size={36} color="#FF4444" />
+            </View>
+            <Text style={styles.logoutTitle}>Déconnexion</Text>
+            <Text style={styles.logoutMessage}>Êtes-vous sûr de vouloir vous déconnecter ?</Text>
+            <View style={styles.logoutButtons}>
+              <TouchableOpacity
+                style={styles.logoutCancelBtn}
+                onPress={() => setShowLogoutConfirm(false)}
+              >
+                <Text style={styles.logoutCancelText}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.logoutConfirmBtn}
+                onPress={confirmLogout}
+              >
+                <Text style={styles.logoutConfirmText}>Déconnexion</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
