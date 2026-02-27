@@ -268,6 +268,30 @@ export default function DJDetailScreen() {
                     <Ionicons name="logo-facebook" size={24} color="#1877F2" />
                   </TouchableOpacity>
                 )}
+                {dj.social_media.tiktok && (
+                  <TouchableOpacity
+                    style={[styles.socialButton, styles.tiktokButton]}
+                    onPress={() => openSocialMedia(`https://tiktok.com/@${dj.social_media!.tiktok!.replace('@', '')}`)}
+                  >
+                    <Ionicons name="logo-tiktok" size={24} color="#fff" />
+                  </TouchableOpacity>
+                )}
+                {dj.social_media.spotify && (
+                  <TouchableOpacity
+                    style={styles.socialButton}
+                    onPress={() => openSocialMedia(dj.social_media!.spotify!)}
+                  >
+                    <Ionicons name="musical-notes" size={24} color="#1DB954" />
+                  </TouchableOpacity>
+                )}
+                {dj.social_media.mixcloud && (
+                  <TouchableOpacity
+                    style={styles.socialButton}
+                    onPress={() => openSocialMedia(dj.social_media!.mixcloud!)}
+                  >
+                    <Ionicons name="cloud" size={24} color="#5000FF" />
+                  </TouchableOpacity>
+                )}
               </View>
             </View>
           )}
