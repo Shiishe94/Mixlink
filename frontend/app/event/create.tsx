@@ -17,6 +17,8 @@ import { eventApi, configApi } from '../../src/services/api';
 import { Input } from '../../src/components/Input';
 import { Button } from '../../src/components/Button';
 import { useEffect } from 'react';
+import { NeonAlert, useNeonAlert } from '../../src/components/NeonAlert';
+import { NEON_COLORS } from '../../src/components/NeonBackground';
 
 export default function CreateEventScreen() {
   const [loading, setLoading] = useState(false);
