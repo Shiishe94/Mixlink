@@ -25,6 +25,7 @@ import { Input } from '../../src/components/Input';
 import { Button } from '../../src/components/Button';
 import { useAuthStore } from '../../src/store/authStore';
 import { NeonBackgroundSimple, NEON_COLORS } from '../../src/components/NeonBackground';
+import { NeonAlert, useNeonAlert } from '../../src/components/NeonAlert';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
