@@ -306,6 +306,13 @@ const styles = StyleSheet.create({
   stepContent: {
     flex: 1,
     paddingTop: 20,
+    alignItems: 'center',
+  },
+  logoImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 16,
+    marginBottom: 16,
   },
   title: {
     fontSize: 28,
