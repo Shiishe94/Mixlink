@@ -738,6 +738,32 @@ const styles = StyleSheet.create({
   ctaButton: {
     width: '100%',
   },
+  adminLink: {
+    backgroundColor: '#1E1E1E',
+    borderRadius: 16,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  adminLinkContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  adminLinkText: {
+    flex: 1,
+  },
+  adminLinkTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  adminLinkSubtitle: {
+    fontSize: 12,
+    color: '#636E72',
+    marginTop: 2,
+  },
   bottomPadding: {
     height: 40,
   },
