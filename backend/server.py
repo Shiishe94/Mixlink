@@ -625,7 +625,7 @@ async def get_event(event_id: str):
             "last_name": organizer.get("last_name")
         }
     
-    return event
+    return serialize_doc(event)
 
 @api_router.put("/events/{event_id}")
 async def update_event(
