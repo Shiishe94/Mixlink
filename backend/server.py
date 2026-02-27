@@ -687,7 +687,7 @@ async def create_booking(
     booking_dict["updated_at"] = datetime.utcnow()
     
     await db.bookings.insert_one(booking_dict)
-    return booking_dict
+    return serialize_doc(booking_dict)
 
 @api_router.get("/bookings/my")
 async def get_my_bookings(current_user: dict = Depends(get_current_user)):
