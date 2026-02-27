@@ -783,6 +783,32 @@ const styles = StyleSheet.create({
     color: '#636E72',
     marginTop: 2,
   },
+  walletLink: {
+    backgroundColor: '#1E1E1E',
+    borderRadius: 16,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  walletLinkContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  walletLinkText: {
+    flex: 1,
+  },
+  walletLinkTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  walletLinkSubtitle: {
+    fontSize: 12,
+    color: '#636E72',
+    marginTop: 2,
+  },
   bottomPadding: {
     height: 40,
   },
