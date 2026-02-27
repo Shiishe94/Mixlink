@@ -53,6 +53,15 @@ JWT_SECRET = os.environ.get('JWT_SECRET', 'dj-booking-secret-key-2024')
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRATION_HOURS = 72
 
+# Commission Configuration
+COMMISSION_RATE = 0.15  # 15% total commission
+DJ_COMMISSION_RATE = 0.075  # 7.5% from DJ
+ORGANIZER_COMMISSION_RATE = 0.075  # 7.5% from Organizer
+
+# Admin Configuration
+ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', 'admin@djbooking.com')
+ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin123')
+
 # Create the main app
 app = FastAPI(title="DJ Booking API")
 api_router = APIRouter(prefix="/api")
