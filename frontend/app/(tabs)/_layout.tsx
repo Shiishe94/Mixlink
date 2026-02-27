@@ -1,7 +1,10 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { View, StyleSheet } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useAuthStore } from '../../src/store/authStore';
+import { NEON_COLORS } from '../../src/components/NeonBackground';
 
 export default function TabsLayout() {
   const { user } = useAuthStore();
@@ -12,17 +15,19 @@ export default function TabsLayout() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: '#1E1E1E',
-          borderTopColor: '#2D3436',
-          height: 60,
-          paddingBottom: 8,
-          paddingTop: 8,
+          backgroundColor: NEON_COLORS.backgroundLight,
+          borderTopColor: NEON_COLORS.cardBorder,
+          borderTopWidth: 1,
+          height: 70,
+          paddingBottom: 10,
+          paddingTop: 10,
         },
-        tabBarActiveTintColor: '#6C5CE7',
-        tabBarInactiveTintColor: '#636E72',
+        tabBarActiveTintColor: NEON_COLORS.cyan,
+        tabBarInactiveTintColor: NEON_COLORS.textMuted,
         tabBarLabelStyle: {
-          fontSize: 12,
-          fontWeight: '500',
+          fontSize: 11,
+          fontWeight: '600',
+          marginTop: 4,
         },
       }}
     >
@@ -30,8 +35,11 @@ export default function TabsLayout() {
         name="index"
         options={{
           title: 'Accueil',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="home" size={size} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <View style={focused ? styles.activeIcon : undefined}>
+              <Ionicons name={focused ? 'home' : 'home-outline'} size={24} color={color} />
+              {focused && <View style={[styles.glow, { shadowColor: color }]} />}
+            </View>
           ),
         }}
       />
@@ -39,8 +47,11 @@ export default function TabsLayout() {
         name="search"
         options={{
           title: isDJ ? 'Événements' : 'DJs',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="search" size={size} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <View style={focused ? styles.activeIcon : undefined}>
+              <Ionicons name={focused ? 'search' : 'search-outline'} size={24} color={color} />
+              {focused && <View style={[styles.glow, { shadowColor: color }]} />}
+            </View>
           ),
         }}
       />
@@ -48,8 +59,11 @@ export default function TabsLayout() {
         name="bookings"
         options={{
           title: 'Réservations',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="calendar" size={size} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <View style={focused ? styles.activeIcon : undefined}>
+              <Ionicons name={focused ? 'calendar' : 'calendar-outline'} size={24} color={color} />
+              {focused && <View style={[styles.glow, { shadowColor: color }]} />}
+            </View>
           ),
         }}
       />
@@ -57,8 +71,11 @@ export default function TabsLayout() {
         name="messages"
         options={{
           title: 'Messages',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="chatbubbles" size={size} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <View style={focused ? styles.activeIcon : undefined}>
+              <Ionicons name={focused ? 'chatbubbles' : 'chatbubbles-outline'} size={24} color={color} />
+              {focused && <View style={[styles.glow, { shadowColor: color }]} />}
+            </View>
           ),
         }}
       />
@@ -66,11 +83,31 @@ export default function TabsLayout() {
         name="profile"
         options={{
           title: 'Profil',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person" size={size} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <View style={focused ? styles.activeIcon : undefined}>
+              <Ionicons name={focused ? 'person' : 'person-outline'} size={24} color={color} />
+              {focused && <View style={[styles.glow, { shadowColor: color }]} />}
+            </View>
           ),
         }}
       />
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  activeIcon: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  glow: {
+    position: 'absolute',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 12,
+    elevation: 0,
+  },
+});
