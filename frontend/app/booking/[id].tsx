@@ -286,12 +286,31 @@ export default function BookingDetailScreen() {
           )}
 
           {isOrganizer && booking.status === 'paid' && (
-            <Button
-              title="Laisser un avis"
-              variant="secondary"
-              onPress={() => setShowReviewModal(true)}
-              icon={<Ionicons name="star" size={20} color="#fff" />}
-            />
+            <>
+              <Button
+                title="Confirmer la prestation terminée"
+                onPress={handleCompletePrestation}
+                loading={actionLoading}
+                style={styles.completeButton}
+                icon={<Ionicons name="checkmark-circle" size={20} color="#fff" />}
+              />
+              <Text style={styles.completionNote}>
+                En confirmant, vous libérez le paiement au DJ. Cette action est irréversible.
+              </Text>
+              <Button
+                title="Laisser un avis"
+                variant="secondary"
+                onPress={() => setShowReviewModal(true)}
+                icon={<Ionicons name="star" size={20} color="#fff" />}
+              />
+            </>
+          )}
+
+          {isOrganizer && booking.status === 'completed' && (
+            <View style={styles.completedBanner}>
+              <Ionicons name="checkmark-circle" size={24} color="#00B894" />
+              <Text style={styles.completedText}>Prestation confirmée - Paiement libéré au DJ</Text>
+            </View>
           )}
         </View>
 
