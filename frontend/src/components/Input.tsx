@@ -9,6 +9,7 @@ import {
   ViewStyle,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { NEON_COLORS } from './NeonBackground';
 
 interface InputProps extends TextInputProps {
   label?: string;
@@ -30,18 +31,30 @@ export const Input: React.FC<InputProps> = ({
   ...props
 }) => {
   const [isSecure, setIsSecure] = useState(secureTextEntry);
+  const [isFocused, setIsFocused] = useState(false);
 
   return (
     <View style={[styles.container, containerStyle]}>
       {label && <Text style={styles.label}>{label}</Text>}
-      <View style={[styles.inputContainer, error && styles.inputError]}>
+      <View style={[
+        styles.inputContainer, 
+        error && styles.inputError,
+        isFocused && styles.inputFocused
+      ]}>
         {leftIcon && (
-          <Ionicons name={leftIcon} size={20} color="#636E72" style={styles.leftIcon} />
+          <Ionicons 
+            name={leftIcon} 
+            size={20} 
+            color={isFocused ? NEON_COLORS.cyan : NEON_COLORS.textMuted} 
+            style={styles.leftIcon} 
+          />
         )}
         <TextInput
           style={styles.input}
-          placeholderTextColor="#636E72"
+          placeholderTextColor={NEON_COLORS.textMuted}
           secureTextEntry={isSecure}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
           {...props}
         />
         {secureTextEntry && (
@@ -49,13 +62,13 @@ export const Input: React.FC<InputProps> = ({
             <Ionicons
               name={isSecure ? 'eye-off' : 'eye'}
               size={20}
-              color="#636E72"
+              color={NEON_COLORS.textMuted}
             />
           </TouchableOpacity>
         )}
         {rightIcon && !secureTextEntry && (
           <TouchableOpacity onPress={onRightIconPress}>
-            <Ionicons name={rightIcon} size={20} color="#636E72" />
+            <Ionicons name={rightIcon} size={20} color={NEON_COLORS.textMuted} />
           </TouchableOpacity>
         )}
       </View>
@@ -77,14 +90,22 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1E1E1E',
+    backgroundColor: NEON_COLORS.card,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#2D3436',
+    borderColor: NEON_COLORS.cardBorder,
     paddingHorizontal: 16,
   },
+  inputFocused: {
+    borderColor: NEON_COLORS.cyan,
+    shadowColor: NEON_COLORS.cyan,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
   inputError: {
-    borderColor: '#E74C3C',
+    borderColor: NEON_COLORS.error,
   },
   leftIcon: {
     marginRight: 12,
@@ -97,7 +118,7 @@ const styles = StyleSheet.create({
   },
   error: {
     fontSize: 12,
-    color: '#E74C3C',
+    color: NEON_COLORS.error,
     marginTop: 4,
   },
 });
