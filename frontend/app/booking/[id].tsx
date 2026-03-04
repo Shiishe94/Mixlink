@@ -8,6 +8,8 @@ import {
   ActivityIndicator,
   Alert,
   TextInput,
+  Linking,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -16,8 +18,11 @@ import { bookingApi, paymentApi, reviewApi } from '../../src/services/api';
 import { Booking } from '../../src/types';
 import { useAuthStore } from '../../src/store/authStore';
 import { Button } from '../../src/components/Button';
+import { NEON_COLORS } from '../../src/components/NeonBackground';
+import { NeonAlert, useNeonAlert } from '../../src/components/NeonAlert';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const STATUS_COLORS: Record<string, string> = {
   pending: '#F39C12',
@@ -44,10 +49,11 @@ export default function BookingDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<'stripe' | 'paypal' | 'simulated'>('simulated');
+  const [paymentMethod, setPaymentMethod] = useState<'stripe' | 'paypal'>('stripe');
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewComment, setReviewComment] = useState('');
+  const { alert, showAlert, hideAlert } = useNeonAlert();
 
   const isDJ = user?.user_type === 'dj';
   const isOrganizer = user?.user_type === 'organizer';
@@ -82,20 +88,33 @@ export default function BookingDetailScreen() {
   };
 
   const handlePayment = async () => {
-    setActionLoading(true);
-    try {
-      await paymentApi.process({
-        booking_id: id!,
-        payment_method: paymentMethod,
-        amount: booking!.total_amount,
-      });
-      await loadBooking();
-      setShowPaymentModal(false);
-      Alert.alert('Succès', 'Paiement effectué (simulé)');
-    } catch (error: any) {
-      Alert.alert('Erreur', error.response?.data?.detail || 'Paiement échoué');
-    } finally {
-      setActionLoading(false);
+    if (paymentMethod === 'stripe') {
+      setActionLoading(true);
+      try {
+        // Get the origin URL for redirect
+        const originUrl = Platform.OS === 'web'
+          ? window.location.origin
+          : process.env.EXPO_PUBLIC_BACKEND_URL || '';
+        
+        const response = await paymentApi.createStripeCheckout(id!, originUrl);
+        const { url } = response.data;
+        
+        if (url) {
+          setShowPaymentModal(false);
+          // Redirect to Stripe Checkout
+          if (Platform.OS === 'web') {
+            window.location.href = url;
+          } else {
+            await Linking.openURL(url);
+          }
+        }
+      } catch (error: any) {
+        showAlert('error', 'Erreur de paiement', error.response?.data?.detail || 'Impossible de créer la session de paiement Stripe.');
+      } finally {
+        setActionLoading(false);
+      }
+    } else if (paymentMethod === 'paypal') {
+      showAlert('info', 'PayPal', 'L\'intégration PayPal sera bientôt disponible. Veuillez utiliser Stripe pour le moment.');
     }
   };
 
@@ -354,39 +373,73 @@ export default function BookingDetailScreen() {
             </View>
 
             <Text style={styles.modalAmount}>{booking.total_amount}€</Text>
+            <Text style={styles.feeNote}>
+              + {(booking.total_amount * 0.075).toFixed(2)}€ de frais de service
+            </Text>
 
             <Text style={styles.modalSubtitle}>Méthode de paiement</Text>
             
             <TouchableOpacity
               style={[
                 styles.paymentOption,
-                paymentMethod === 'simulated' && styles.paymentOptionSelected,
+                paymentMethod === 'stripe' && styles.paymentOptionSelected,
               ]}
-              onPress={() => setPaymentMethod('simulated')}
+              onPress={() => setPaymentMethod('stripe')}
             >
-              <Ionicons name="card" size={24} color="#6C5CE7" />
-              <Text style={styles.paymentOptionText}>Paiement simulé (MVP)</Text>
-              {paymentMethod === 'simulated' && (
-                <Ionicons name="checkmark-circle" size={20} color="#00B894" />
+              <View style={styles.stripeIcon}>
+                <Ionicons name="card" size={22} color="#fff" />
+              </View>
+              <View style={styles.paymentOptionInfo}>
+                <Text style={styles.paymentOptionText}>Stripe</Text>
+                <Text style={styles.paymentOptionDesc}>Carte bancaire sécurisée</Text>
+              </View>
+              {paymentMethod === 'stripe' && (
+                <Ionicons name="checkmark-circle" size={22} color={NEON_COLORS.green} />
               )}
             </TouchableOpacity>
 
-            <View style={styles.simulatedNote}>
-              <Ionicons name="information-circle" size={20} color="#F39C12" />
-              <Text style={styles.simulatedNoteText}>
-                Le paiement est simulé pour cette version MVP. 
-                Stripe et PayPal seront disponibles prochainement.
+            <TouchableOpacity
+              style={[
+                styles.paymentOption,
+                paymentMethod === 'paypal' && styles.paymentOptionSelected,
+              ]}
+              onPress={() => setPaymentMethod('paypal')}
+            >
+              <View style={styles.paypalIcon}>
+                <Ionicons name="logo-paypal" size={22} color="#fff" />
+              </View>
+              <View style={styles.paymentOptionInfo}>
+                <Text style={styles.paymentOptionText}>PayPal</Text>
+                <Text style={styles.paymentOptionDesc}>Paiement via PayPal</Text>
+              </View>
+              {paymentMethod === 'paypal' && (
+                <Ionicons name="checkmark-circle" size={22} color={NEON_COLORS.green} />
+              )}
+            </TouchableOpacity>
+
+            <View style={styles.secureNote}>
+              <Ionicons name="shield-checkmark" size={18} color={NEON_COLORS.green} />
+              <Text style={styles.secureNoteText}>
+                Paiement 100% sécurisé. Les fonds sont retenus jusqu'à la validation de la prestation.
               </Text>
             </View>
 
             <Button
-              title="Confirmer le paiement"
+              title={`Payer ${(booking.total_amount * 1.075).toFixed(2)}€`}
               onPress={handlePayment}
               loading={actionLoading}
             />
           </View>
         </View>
       )}
+
+      <NeonAlert
+        visible={alert.visible}
+        type={alert.type}
+        title={alert.title}
+        message={alert.message}
+        onClose={hideAlert}
+      />
 
       {/* Review Modal */}
       {showReviewModal && (
@@ -655,24 +708,56 @@ const styles = StyleSheet.create({
   },
   paymentOptionSelected: {
     borderWidth: 2,
-    borderColor: '#6C5CE7',
+    borderColor: NEON_COLORS.cyan,
+  },
+  paymentOptionInfo: {
+    flex: 1,
   },
   paymentOptionText: {
-    flex: 1,
     fontSize: 16,
     color: '#fff',
+    fontWeight: '600',
   },
-  simulatedNote: {
+  paymentOptionDesc: {
+    fontSize: 12,
+    color: '#B2BEC3',
+    marginTop: 2,
+  },
+  stripeIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: '#635BFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  paypalIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: '#003087',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  feeNote: {
+    fontSize: 14,
+    color: NEON_COLORS.textSecondary,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  secureNote: {
     flexDirection: 'row',
     backgroundColor: '#2D3436',
     borderRadius: 12,
     padding: 16,
     marginBottom: 20,
     gap: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 255, 135, 0.15)',
   },
-  simulatedNoteText: {
+  secureNoteText: {
     flex: 1,
-    fontSize: 14,
+    fontSize: 13,
     color: '#B2BEC3',
     lineHeight: 20,
   },

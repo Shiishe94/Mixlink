@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, UploadFile, File
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, UploadFile, File, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -14,6 +14,7 @@ import jwt
 import bcrypt
 import base64
 from bson import ObjectId
+from emergentintegrations.payments.stripe.checkout import StripeCheckout, CheckoutSessionResponse, CheckoutStatusResponse, CheckoutSessionRequest
 
 ROOT_DIR = Path(__file__).parent
 
@@ -61,6 +62,14 @@ ORGANIZER_COMMISSION_RATE = 0.075  # 7.5% from Organizer
 # Admin Configuration
 ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', 'admin@djbooking.com')
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin123')
+
+# Stripe Configuration
+STRIPE_API_KEY = os.environ.get('STRIPE_API_KEY', '')
+STRIPE_PUBLISHABLE_KEY = os.environ.get('STRIPE_PUBLISHABLE_KEY', '')
+
+# PayPal Configuration
+PAYPAL_CLIENT_ID = os.environ.get('PAYPAL_CLIENT_ID', '')
+PAYPAL_CLIENT_SECRET = os.environ.get('PAYPAL_CLIENT_SECRET', '')
 
 # Create the main app
 app = FastAPI(title="DJ Booking API")
@@ -839,6 +848,313 @@ async def update_booking_status(
     
     updated_booking = await db.bookings.find_one({"id": booking_id})
     return serialize_doc(updated_booking)
+
+# ==================== STRIPE PAYMENT ROUTES ====================
+
+class StripeCheckoutRequest(BaseModel):
+    booking_id: str
+    origin_url: str
+
+@api_router.post("/payments/stripe/checkout")
+async def create_stripe_checkout(
+    data: StripeCheckoutRequest,
+    request: Request,
+    current_user: dict = Depends(get_current_user)
+):
+    """Create a Stripe checkout session for booking payment"""
+    booking = await db.bookings.find_one({"id": data.booking_id})
+    if not booking:
+        raise HTTPException(status_code=404, detail="Réservation introuvable")
+    
+    if booking["organizer_id"] != current_user["id"]:
+        raise HTTPException(status_code=403, detail="Non autorisé à payer cette réservation")
+    
+    if booking["status"] != "accepted":
+        raise HTTPException(status_code=400, detail="La réservation doit être acceptée avant le paiement")
+    
+    if booking.get("payment_status") == "paid":
+        raise HTTPException(status_code=400, detail="Cette réservation est déjà payée")
+    
+    # Check for existing pending checkout for this booking
+    existing = await db.payment_transactions.find_one({
+        "booking_id": data.booking_id,
+        "payment_status": {"$in": ["initiated", "pending"]}
+    })
+    if existing:
+        # Return existing session if still valid
+        return {"url": existing.get("checkout_url", ""), "session_id": existing.get("session_id", "")}
+    
+    # Calculate amount with organizer commission
+    booking_amount = float(booking.get("total_amount", booking.get("proposed_rate", 0)))
+    organizer_fee = round(booking_amount * ORGANIZER_COMMISSION_RATE, 2)
+    total_to_charge = round(booking_amount + organizer_fee, 2)
+    
+    # Build URLs
+    success_url = f"{data.origin_url}/payment/success?session_id={{CHECKOUT_SESSION_ID}}"
+    cancel_url = f"{data.origin_url}/payment/cancel?booking_id={data.booking_id}"
+    
+    # Initialize Stripe
+    host_url = str(request.base_url)
+    webhook_url = f"{host_url}api/webhook/stripe"
+    stripe_checkout = StripeCheckout(api_key=STRIPE_API_KEY, webhook_url=webhook_url)
+    
+    # Create checkout session
+    checkout_request = CheckoutSessionRequest(
+        amount=total_to_charge,
+        currency="eur",
+        success_url=success_url,
+        cancel_url=cancel_url,
+        metadata={
+            "booking_id": data.booking_id,
+            "organizer_id": current_user["id"],
+            "dj_id": booking["dj_id"],
+            "booking_amount": str(booking_amount),
+            "organizer_fee": str(organizer_fee),
+            "payment_type": "booking_payment"
+        }
+    )
+    
+    session = await stripe_checkout.create_checkout_session(checkout_request)
+    
+    # Create payment transaction record
+    transaction = {
+        "id": str(uuid.uuid4()),
+        "session_id": session.session_id,
+        "checkout_url": session.url,
+        "booking_id": data.booking_id,
+        "organizer_id": current_user["id"],
+        "dj_id": booking["dj_id"],
+        "amount": total_to_charge,
+        "booking_amount": booking_amount,
+        "organizer_fee": organizer_fee,
+        "currency": "eur",
+        "payment_method": "stripe",
+        "payment_status": "initiated",
+        "metadata": {
+            "booking_id": data.booking_id,
+            "organizer_id": current_user["id"],
+        },
+        "created_at": datetime.utcnow(),
+        "updated_at": datetime.utcnow()
+    }
+    await db.payment_transactions.insert_one(transaction)
+    
+    return {"url": session.url, "session_id": session.session_id}
+
+
+@api_router.get("/payments/stripe/status/{session_id}")
+async def get_stripe_payment_status(
+    session_id: str,
+    request: Request,
+    current_user: dict = Depends(get_current_user)
+):
+    """Check status of a Stripe checkout session and process payment if successful"""
+    # Initialize Stripe
+    host_url = str(request.base_url)
+    webhook_url = f"{host_url}api/webhook/stripe"
+    stripe_checkout = StripeCheckout(api_key=STRIPE_API_KEY, webhook_url=webhook_url)
+    
+    checkout_status = await stripe_checkout.get_checkout_status(session_id)
+    
+    # Find the transaction
+    transaction = await db.payment_transactions.find_one({"session_id": session_id})
+    if not transaction:
+        raise HTTPException(status_code=404, detail="Transaction introuvable")
+    
+    # Update transaction status
+    new_status = "pending"
+    if checkout_status.payment_status == "paid":
+        new_status = "paid"
+    elif checkout_status.status == "expired":
+        new_status = "expired"
+    
+    await db.payment_transactions.update_one(
+        {"session_id": session_id},
+        {"$set": {"payment_status": new_status, "updated_at": datetime.utcnow()}}
+    )
+    
+    # If paid and not already processed, process the full payment
+    if new_status == "paid" and not transaction.get("processed"):
+        await _process_successful_payment(transaction)
+    
+    return {
+        "status": checkout_status.status,
+        "payment_status": new_status,
+        "amount_total": checkout_status.amount_total,
+        "currency": checkout_status.currency,
+        "booking_id": transaction.get("booking_id")
+    }
+
+
+@api_router.post("/webhook/stripe")
+async def stripe_webhook(request: Request):
+    """Handle Stripe webhook events"""
+    body = await request.body()
+    signature = request.headers.get("Stripe-Signature", "")
+    
+    try:
+        host_url = str(request.base_url)
+        webhook_url = f"{host_url}api/webhook/stripe"
+        stripe_checkout = StripeCheckout(api_key=STRIPE_API_KEY, webhook_url=webhook_url)
+        webhook_response = await stripe_checkout.handle_webhook(body, signature)
+        
+        if webhook_response.payment_status == "paid":
+            transaction = await db.payment_transactions.find_one({"session_id": webhook_response.session_id})
+            if transaction and not transaction.get("processed"):
+                await db.payment_transactions.update_one(
+                    {"session_id": webhook_response.session_id},
+                    {"$set": {"payment_status": "paid", "updated_at": datetime.utcnow()}}
+                )
+                await _process_successful_payment(transaction)
+        
+        return {"status": "ok"}
+    except Exception as e:
+        logging.error(f"Webhook error: {str(e)}")
+        return {"status": "error"}
+
+
+async def _process_successful_payment(transaction: dict):
+    """Process a successful payment - update booking, create earnings, commissions"""
+    booking_id = transaction["booking_id"]
+    
+    # Check if already processed (prevent double processing)
+    existing = await db.payment_transactions.find_one({
+        "session_id": transaction["session_id"],
+        "processed": True
+    })
+    if existing:
+        return
+    
+    # Mark as processed
+    await db.payment_transactions.update_one(
+        {"session_id": transaction["session_id"]},
+        {"$set": {"processed": True, "updated_at": datetime.utcnow()}}
+    )
+    
+    booking = await db.bookings.find_one({"id": booking_id})
+    if not booking:
+        return
+    
+    booking_amount = transaction.get("booking_amount", float(booking.get("total_amount", 0)))
+    dj_commission = round(booking_amount * DJ_COMMISSION_RATE, 2)
+    organizer_commission = transaction.get("organizer_fee", round(booking_amount * ORGANIZER_COMMISSION_RATE, 2))
+    total_commission = dj_commission + organizer_commission
+    dj_payout = booking_amount - dj_commission
+    
+    # Create payment record
+    payment_dict = {
+        "id": str(uuid.uuid4()),
+        "booking_id": booking_id,
+        "payment_method": "stripe",
+        "amount": booking_amount,
+        "status": "completed",
+        "transaction_id": transaction["session_id"],
+        "created_at": datetime.utcnow(),
+        "dj_commission": dj_commission,
+        "organizer_commission": organizer_commission,
+        "total_commission": total_commission,
+        "dj_payout": dj_payout,
+        "total_charged": transaction["amount"]
+    }
+    await db.payments.insert_one(payment_dict)
+    
+    # Create commission record
+    commission_dict = {
+        "id": str(uuid.uuid4()),
+        "booking_id": booking_id,
+        "payment_id": payment_dict["id"],
+        "dj_id": booking["dj_id"],
+        "organizer_id": booking["organizer_id"],
+        "booking_amount": booking_amount,
+        "dj_commission": dj_commission,
+        "organizer_commission": organizer_commission,
+        "total_commission": total_commission,
+        "dj_payout": dj_payout,
+        "status": "credited",
+        "created_at": datetime.utcnow()
+    }
+    await db.commissions.insert_one(commission_dict)
+    
+    # Update admin wallet
+    admin_wallet = await db.admin_wallet.find_one({})
+    if admin_wallet:
+        await db.admin_wallet.update_one(
+            {"id": admin_wallet["id"]},
+            {
+                "$inc": {"balance": total_commission, "total_earned": total_commission},
+                "$set": {"updated_at": datetime.utcnow()}
+            }
+        )
+    else:
+        await db.admin_wallet.insert_one({
+            "id": str(uuid.uuid4()),
+            "balance": total_commission,
+            "total_earned": total_commission,
+            "total_withdrawn": 0.0,
+            "updated_at": datetime.utcnow()
+        })
+    
+    # Update booking
+    await db.bookings.update_one(
+        {"id": booking_id},
+        {"$set": {
+            "payment_status": "paid",
+            "payment_method": "stripe",
+            "status": "paid",
+            "updated_at": datetime.utcnow(),
+            "dj_payout": dj_payout,
+            "commission_amount": total_commission,
+            "prestation_completed": False
+        }}
+    )
+    
+    # DJ earnings (pending until prestation completed)
+    event = await db.events.find_one({"id": booking["event_id"]})
+    dj_earning = {
+        "id": str(uuid.uuid4()),
+        "dj_id": booking["dj_id"],
+        "booking_id": booking_id,
+        "amount": dj_payout,
+        "status": "pending",
+        "event_date": event.get("date", "") if event else "",
+        "released_at": None,
+        "created_at": datetime.utcnow()
+    }
+    await db.dj_earnings.insert_one(dj_earning)
+    
+    # Update DJ wallet
+    dj_wallet = await db.dj_wallets.find_one({"dj_id": booking["dj_id"]})
+    if dj_wallet:
+        await db.dj_wallets.update_one(
+            {"dj_id": booking["dj_id"]},
+            {
+                "$inc": {"pending_balance": dj_payout, "total_earned": dj_payout},
+                "$set": {"updated_at": datetime.utcnow()}
+            }
+        )
+    else:
+        await db.dj_wallets.insert_one({
+            "id": str(uuid.uuid4()),
+            "dj_id": booking["dj_id"],
+            "pending_balance": dj_payout,
+            "available_balance": 0.0,
+            "total_earned": dj_payout,
+            "total_withdrawn": 0.0,
+            "updated_at": datetime.utcnow()
+        })
+
+
+@api_router.get("/payments/config")
+async def get_payment_config():
+    """Return payment configuration (Stripe publishable key, PayPal client ID)"""
+    return {
+        "stripe_publishable_key": STRIPE_PUBLISHABLE_KEY,
+        "paypal_client_id": PAYPAL_CLIENT_ID,
+        "commission_rate": COMMISSION_RATE,
+        "dj_commission_rate": DJ_COMMISSION_RATE,
+        "organizer_commission_rate": ORGANIZER_COMMISSION_RATE,
+    }
+
 
 # ==================== PAYMENT ROUTES (SIMULATED) ====================
 

@@ -115,4 +115,13 @@ export const configApi = {
   getEventTypes: () => api.get('/config/event-types'),
 };
 
+// Payment API
+export const paymentApi = {
+  getConfig: () => api.get('/payments/config'),
+  createStripeCheckout: (bookingId: string, originUrl: string) =>
+    api.post('/payments/stripe/checkout', { booking_id: bookingId, origin_url: originUrl }),
+  getStripeStatus: (sessionId: string) =>
+    api.get(`/payments/stripe/status/${sessionId}`),
+};
+
 export default api;
