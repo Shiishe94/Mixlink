@@ -52,6 +52,9 @@ export default function RootLayout() {
         <Stack.Screen name="messages/[partnerId]" options={{ headerShown: false }} />
         <Stack.Screen name="admin/index" options={{ headerShown: false }} />
         <Stack.Screen name="dj/wallet" options={{ headerShown: false }} />
+        <Stack.Screen name="payment/checkout" options={{ headerShown: false }} />
+        <Stack.Screen name="payment/success" options={{ headerShown: false }} />
+        <Stack.Screen name="payment/cancel" options={{ headerShown: false }} />
       </Stack>
     </>
   );

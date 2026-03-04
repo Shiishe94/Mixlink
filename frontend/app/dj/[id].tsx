@@ -66,20 +66,31 @@ export default function DJDetailScreen() {
 
     setBookingLoading(true);
     try {
-      await bookingApi.create({
+      const proposedRate = dj!.hourly_rate * 4;
+      const response = await bookingApi.create({
         dj_id: id,
         event_id: selectedEvent.id,
-        proposed_rate: dj!.hourly_rate * 4, // Assuming 4 hours minimum
+        proposed_rate: proposedRate,
         message: `Demande de réservation pour ${selectedEvent.title}`,
       });
-      Alert.alert('Succès', 'Demande de réservation envoyée !', [
-        { text: 'OK', onPress: () => router.push('/(tabs)/bookings') },
-      ]);
+      
+      const bookingId = response.data?.id || response.data?.booking_id;
+      setShowBookingModal(false);
+      
+      // Navigate to checkout page
+      router.push({
+        pathname: '/payment/checkout',
+        params: {
+          booking_id: bookingId,
+          dj_name: dj!.artist_name,
+          event_title: selectedEvent.title,
+          amount: String(proposedRate),
+        },
+      });
     } catch (error: any) {
       Alert.alert('Erreur', error.response?.data?.detail || 'Impossible d\'envoyer la demande');
     } finally {
       setBookingLoading(false);
-      setShowBookingModal(false);
     }
   };
 
@@ -371,7 +382,7 @@ export default function DJDetailScreen() {
                   ))}
                 </ScrollView>
                 <Button
-                  title="Envoyer la demande"
+                  title="Payer et réserver"
                   onPress={handleBooking}
                   loading={bookingLoading}
                   disabled={!selectedEvent}
@@ -382,8 +393,8 @@ export default function DJDetailScreen() {
         </View>
       )}
 
-      {/* Action Buttons */}
-      {isOrganizer && (
+      {/* Action Buttons - hidden when modal is open */}
+      {isOrganizer && !showBookingModal && (
         <View style={styles.actionButtons}>
           <TouchableOpacity style={styles.messageButton} onPress={handleMessage}>
             <Ionicons name="chatbubble" size={24} color="#6C5CE7" />

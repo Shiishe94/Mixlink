@@ -869,11 +869,11 @@ async def create_stripe_checkout(
     if booking["organizer_id"] != current_user["id"]:
         raise HTTPException(status_code=403, detail="Non autorisé à payer cette réservation")
     
-    if booking["status"] != "accepted":
-        raise HTTPException(status_code=400, detail="La réservation doit être acceptée avant le paiement")
-    
     if booking.get("payment_status") == "paid":
         raise HTTPException(status_code=400, detail="Cette réservation est déjà payée")
+    
+    if booking["status"] not in ["pending", "accepted"]:
+        raise HTTPException(status_code=400, detail="Cette réservation ne peut pas être payée")
     
     # Check for existing pending checkout for this booking
     existing = await db.payment_transactions.find_one({
@@ -1511,7 +1511,7 @@ async def send_message(
     message_dict["created_at"] = datetime.utcnow()
     
     await db.messages.insert_one(message_dict)
-    return message_dict
+    return serialize_doc(message_dict)
 
 @api_router.get("/messages/conversations")
 async def get_conversations(current_user: dict = Depends(get_current_user)):
@@ -1558,7 +1558,7 @@ async def get_conversations(current_user: dict = Depends(get_current_user)):
     
     # Sort by last message time
     conversations.sort(key=lambda x: x["last_message"]["created_at"] if x["last_message"] else datetime.min, reverse=True)
-    return conversations
+    return [serialize_doc(c) for c in conversations]
 
 @api_router.get("/messages/{partner_id}")
 async def get_messages(partner_id: str, current_user: dict = Depends(get_current_user)):
@@ -1575,7 +1575,7 @@ async def get_messages(partner_id: str, current_user: dict = Depends(get_current
         {"$set": {"is_read": True}}
     )
     
-    return messages
+    return [serialize_doc(m) for m in messages]
 
 # ==================== REVIEW ROUTES ====================
 
