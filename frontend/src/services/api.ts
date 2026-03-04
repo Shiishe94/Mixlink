@@ -77,6 +77,11 @@ export const bookingApi = {
 export const paymentApi = {
   process: (data: { booking_id: string; payment_method: string; amount: number }) =>
     api.post('/payments', data),
+  getConfig: () => api.get('/payments/config'),
+  createStripeCheckout: (bookingId: string, originUrl: string) =>
+    api.post('/payments/stripe/checkout', { booking_id: bookingId, origin_url: originUrl }),
+  getStripeStatus: (sessionId: string) =>
+    api.get(`/payments/stripe/status/${sessionId}`),
 };
 
 // DJ Wallet API
@@ -113,15 +118,6 @@ export const matchApi = {
 export const configApi = {
   getMusicStyles: () => api.get('/config/music-styles'),
   getEventTypes: () => api.get('/config/event-types'),
-};
-
-// Payment API
-export const paymentApi = {
-  getConfig: () => api.get('/payments/config'),
-  createStripeCheckout: (bookingId: string, originUrl: string) =>
-    api.post('/payments/stripe/checkout', { booking_id: bookingId, origin_url: originUrl }),
-  getStripeStatus: (sessionId: string) =>
-    api.get(`/payments/stripe/status/${sessionId}`),
 };
 
 export default api;
