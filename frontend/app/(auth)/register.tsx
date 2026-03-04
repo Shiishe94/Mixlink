@@ -17,6 +17,7 @@ import { Input } from '../../src/components/Input';
 import { Button } from '../../src/components/Button';
 import { useAuthStore } from '../../src/store/authStore';
 import { NeonAlert, useNeonAlert } from '../../src/components/NeonAlert';
+import { goBack } from '../../src/utils/navigation';
 
 export default function RegisterScreen() {
   const [step, setStep] = useState(1);
@@ -107,7 +108,7 @@ export default function RegisterScreen() {
       >
         <View style={styles.header}>
           <TouchableOpacity
-            onPress={() => (step > 1 ? setStep(step - 1) : router.back())}
+            onPress={() => (step > 1 ? setStep(step - 1) : goBack())}
             style={styles.backButton}
           >
             <Ionicons name="arrow-back" size={24} color="#fff" />

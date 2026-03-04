@@ -18,6 +18,7 @@ import { messageApi, authApi } from '../../src/services/api';
 import { Message } from '../../src/types';
 import { useAuthStore } from '../../src/store/authStore';
 import { format, isToday, isYesterday } from 'date-fns';
+import { goBack } from '../../src/utils/navigation';
 import { fr } from 'date-fns/locale';
 
 export default function ChatScreen() {
@@ -141,7 +142,7 @@ export default function ChatScreen() {
       >
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+          <TouchableOpacity style={styles.backButton} onPress={goBack}>
             <Ionicons name="arrow-back" size={24} color="#fff" />
           </TouchableOpacity>
           <View style={styles.headerInfo}>

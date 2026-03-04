@@ -20,6 +20,7 @@ import { Input } from '../../src/components/Input';
 import { Button } from '../../src/components/Button';
 import { NEON_COLORS } from '../../src/components/NeonBackground';
 import { NeonAlert, useNeonAlert } from '../../src/components/NeonAlert';
+import { goBack } from '../../src/utils/navigation';
 
 export default function CheckoutScreen() {
   const { booking_id, dj_name, event_title, amount } = useLocalSearchParams<{
@@ -94,7 +95,7 @@ export default function CheckoutScreen() {
       >
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <TouchableOpacity onPress={goBack} style={styles.backBtn}>
             <Ionicons name="arrow-back" size={24} color="#fff" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Paiement</Text>

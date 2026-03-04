@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { djWalletApi } from '../../src/services/api';
+import { goBack } from '../../src/utils/navigation';
 import { Button } from '../../src/components/Button';
 import { Input } from '../../src/components/Input';
 import { format } from 'date-fns';
@@ -112,7 +113,7 @@ export default function DJWalletScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.backButton} onPress={goBack}>
           <Ionicons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Mon Portefeuille</Text>

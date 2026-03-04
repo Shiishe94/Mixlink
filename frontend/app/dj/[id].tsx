@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { djApi, bookingApi, eventApi, reviewApi, messageApi } from '../../src/services/api';
 import { DJProfile, Event, Review } from '../../src/types';
 import { useAuthStore } from '../../src/store/authStore';
+import { goBack } from '../../src/utils/navigation';
 import { Button } from '../../src/components/Button';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -133,7 +134,7 @@ export default function DJDetailScreen() {
       <SafeAreaView style={styles.container}>
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>DJ non trouvé</Text>
-          <Button title="Retour" onPress={() => router.back()} />
+          <Button title="Retour" onPress={goBack} />
         </View>
       </SafeAreaView>
     );
@@ -144,7 +145,7 @@ export default function DJDetailScreen() {
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+          <TouchableOpacity style={styles.backButton} onPress={goBack}>
             <Ionicons name="arrow-back" size={24} color="#fff" />
           </TouchableOpacity>
           <TouchableOpacity style={styles.shareButton}>

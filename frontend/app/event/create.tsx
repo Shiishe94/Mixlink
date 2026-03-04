@@ -19,6 +19,7 @@ import { Button } from '../../src/components/Button';
 import { useEffect } from 'react';
 import { NeonAlert, useNeonAlert } from '../../src/components/NeonAlert';
 import { NEON_COLORS } from '../../src/components/NeonBackground';
+import { goBack } from '../../src/utils/navigation';
 
 export default function CreateEventScreen() {
   const [loading, setLoading] = useState(false);
@@ -142,7 +143,7 @@ export default function CreateEventScreen() {
       });
 
       showAlert('success', 'Événement créé !', 'Votre événement a été créé avec succès. Les DJs pourront maintenant le consulter.');
-      setTimeout(() => router.back(), 2000);
+      setTimeout(() => goBack(), 2000);
     } catch (error: any) {
       const msg = error.response?.data?.detail || '';
       showAlert('error', 'Erreur de création', msg || 'Impossible de créer l\'événement. Veuillez réessayer.');
@@ -158,7 +159,7 @@ export default function CreateEventScreen() {
         style={styles.keyboardView}
       >
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+          <TouchableOpacity style={styles.backButton} onPress={goBack}>
             <Ionicons name="arrow-back" size={24} color="#fff" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Nouvel événement</Text>

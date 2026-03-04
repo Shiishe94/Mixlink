@@ -20,6 +20,7 @@ import { useAuthStore } from '../../src/store/authStore';
 import { Button } from '../../src/components/Button';
 import { NEON_COLORS } from '../../src/components/NeonBackground';
 import { NeonAlert, useNeonAlert } from '../../src/components/NeonAlert';
+import { goBack } from '../../src/utils/navigation';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -188,7 +189,7 @@ export default function BookingDetailScreen() {
       <SafeAreaView style={styles.container}>
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>Réservation non trouvée</Text>
-          <Button title="Retour" onPress={() => router.back()} />
+          <Button title="Retour" onPress={goBack} />
         </View>
       </SafeAreaView>
     );
@@ -200,7 +201,7 @@ export default function BookingDetailScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.backButton} onPress={goBack}>
           <Ionicons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Détails de la réservation</Text>

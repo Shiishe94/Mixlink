@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { eventApi, matchApi, bookingApi } from '../../src/services/api';
 import { Event, DJProfile } from '../../src/types';
 import { useAuthStore } from '../../src/store/authStore';
+import { goBack } from '../../src/utils/navigation';
 import { DJCard } from '../../src/components/DJCard';
 import { Button } from '../../src/components/Button';
 import { format } from 'date-fns';
@@ -71,7 +72,7 @@ export default function EventDetailScreen() {
           onPress: async () => {
             try {
               await eventApi.delete(id!);
-              router.back();
+              goBack();
             } catch (error) {
               Alert.alert('Erreur', 'Impossible de supprimer l\'\'événement');
             }
@@ -96,7 +97,7 @@ export default function EventDetailScreen() {
       <SafeAreaView style={styles.container}>
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>Événement non trouvé</Text>
-          <Button title="Retour" onPress={() => router.back()} />
+          <Button title="Retour" onPress={goBack} />
         </View>
       </SafeAreaView>
     );
@@ -105,7 +106,7 @@ export default function EventDetailScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.backButton} onPress={goBack}>
           <Ionicons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
         {isMyEvent && (
