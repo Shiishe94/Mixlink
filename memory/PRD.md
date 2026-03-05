@@ -1,160 +1,90 @@
 # DJ Booking Platform - PRD
 
-## Original Problem Statement
-Application mobile et web pour la réservation de DJs pour événements avec système de paiement complet.
+## Statut : Phase P1-P2 Complétée (Mars 2025)
 
-### User Roles
-- **DJs**: Profil, disponibilités, retraits de fonds
-- **Organisateurs**: Recherche DJs, événements, réservations
-- **Admin**: Gestion commissions et transactions
+## Résumé des Implémentations
 
-### Core Features
-1. **Profils DJ**: Style musical, expérience, vidéos, TikTok
-2. **Découverte**: Recherche et filtrage DJs/événements
-3. **Réservation**: Flow complet avec checkout
-4. **Paiements**: Stripe, commission 15%, retraits IBAN/PayPal (min 50€)
-5. **Avis et Notes**: Système d'évaluation 1-5 étoiles
-6. **Messagerie**: Chat temps réel DJ ↔ Organisateur
-7. **UI/UX**: Thème Neon avec animations électriques
-
-## Tech Stack
-- **Frontend**: React Native (Expo), TypeScript, Expo Router
-- **Backend**: FastAPI, Python, WebSockets
-- **Database**: MongoDB
-- **Payments**: Stripe, PayPal Payouts
-
----
-
-## Implemented Features (Mars 2025)
-
-### ✅ Système de Réinitialisation de Mot de Passe
-- Endpoints: `/api/auth/forgot-password`, `/api/auth/reset-password/{token}`
-- Pages frontend: `/forgot-password`, `/reset-password`
-- Lien "Mot de passe oublié ?" sur login
-- Token sécurisé (1h expiration), anti-enumération
-- **MOCKED**: Envoi d'email simulé
-
-### ✅ Historique des Retraits en Temps Réel (P1)
+### ✅ P1 - Historique Retraits Temps Réel
 - Page `/dj/withdrawal-history` avec WebSocket
-- Indicateur de connexion WebSocket (vert/rouge)
-- Statistiques: total, complétés, en cours
-- Badges de statut colorés (en attente, en cours, effectué, rejeté)
-- Bouton "Temps réel" sur la page wallet
+- Statistiques (total, complétés, en cours)
+- Badges de statut colorés
+- Bouton "Temps réel" sur page wallet
 
-### ✅ Messagerie Temps Réel (P2)
-- WebSocket intégré dans `/messages/[partnerId]`
+### ✅ P1 - Messagerie Temps Réel
+- WebSocket intégré dans le chat
 - Indicateur de statut en ligne
-- Messages instantanés via WebSocket
-- Fallback polling (10 secondes)
+- Broadcast automatique des messages
 
-### ✅ Refactoring Backend (Structure)
-- Dossier `/app/backend/routes/` créé
-- Dossier `/app/backend/models/` créé
-- Fichiers placeholder pour migration future
-- Logique principale encore dans `server.py`
+### ✅ P2 - Panel Admin Complet
+- Dashboard avec statistiques globales (`/admin/stats`)
+- Gestion utilisateurs (`/admin/v2/users`)
+- Modération avis (`/admin/v2/reviews`)
+- Gestion retraits (`/admin/v2/withdrawals`)
+- Gestion profils DJ (`/admin/v2/dj-profiles`)
+- Actions: ban/unban, approver/rejeter, supprimer
 
-### ✅ Fonctionnalités Existantes
-- Authentification JWT
-- Profils DJ complets
-- Système de réservation
-- Paiement Stripe
-- Retraits IBAN et PayPal
-- Système d'avis (backend + frontend)
-- Animations néon électriques
+### ✅ P2 - Services Backend
+- Email Service (Mock) - Templates pour: password reset, booking confirmation, withdrawal notification
+- Push Notification Service (Expo) - Templates pour: new booking, message, withdrawal status, review
 
----
+### ✅ Structure Refactoring
+- `/backend/routes/` - Structure modulaire préparée
+- `/backend/models/` - Modèles Pydantic centralisés
+- `/backend/services/email_service.py` - Service email
+- `/backend/services/push_service.py` - Notifications push
 
-## API Endpoints Clés
+## API Endpoints Admin (v2)
 | Endpoint | Description |
 |----------|-------------|
-| `POST /api/auth/forgot-password` | Demande reset mot de passe |
-| `POST /api/auth/reset-password/{token}` | Réinitialiser mot de passe |
-| `POST /api/dj/withdrawal` | Demande de retrait |
-| `GET /api/dj/withdrawals` | Historique des retraits |
-| `POST /api/messages` | Envoyer un message (+ broadcast WS) |
-| `POST /api/reviews` | Créer un avis |
-| `WS /ws/{user_id}` | Connexion WebSocket temps réel |
+| `GET /api/admin/stats` | Statistiques globales |
+| `GET /api/admin/v2/users` | Liste utilisateurs |
+| `PUT /api/admin/v2/users/{id}/status` | Ban/Unban |
+| `DELETE /api/admin/v2/users/{id}` | Supprimer user |
+| `GET /api/admin/v2/reviews` | Liste avis |
+| `PUT /api/admin/v2/reviews/{id}` | Modérer avis |
+| `DELETE /api/admin/v2/reviews/{id}` | Supprimer avis |
+| `GET /api/admin/v2/withdrawals` | Liste retraits |
+| `PUT /api/admin/v2/withdrawals/{id}` | Approuver/Rejeter |
+| `GET /api/admin/v2/dj-profiles` | Liste profils DJ |
 
----
+## Credentials Test
+- Admin: admin@djbooking.com / admin123456
+- DJ Test: reset-test@djbooking.com / newpassword123
 
-## Files Reference
-| Fichier | Description |
-|---------|-------------|
-| `/app/frontend/app/dj/withdrawal-history.tsx` | Historique retraits temps réel |
-| `/app/frontend/app/dj/wallet.tsx` | Portefeuille DJ |
-| `/app/frontend/app/messages/[partnerId].tsx` | Chat temps réel |
-| `/app/frontend/app/(auth)/forgot-password.tsx` | Page mot de passe oublié |
-| `/app/frontend/app/(auth)/reset-password.tsx` | Page reset mot de passe |
-| `/app/backend/server.py` | API backend principale |
-| `/app/backend/routes/` | Structure pour refactoring |
-| `/app/backend/models/` | Modèles Pydantic centralisés |
-
----
-
-## Test Results (Iteration 4)
-- **Backend**: 100% (13/13 tests passed)
-- **Frontend**: Pages fonctionnelles
-- **WebSocket**: Fonctionne en interne (localhost:8001)
-- **Note**: WSS externe retourne 502 (problème infrastructure Kubernetes)
-
-## Test Credentials
-- Email: reset-test@djbooking.com
-- Password: newpassword123
-- Type: DJ
-
----
-
-## Known Issues
-| Issue | Statut | Note |
-|-------|--------|------|
-| WebSocket externe (WSS) | INFRASTRUCTURE | 502 via ingress, OK en interne |
-| Email password reset | MOCKED | Token retourné dans la réponse API |
-
----
-
-## Backlog / Future Tasks
-
-### P0 - Critique
-- Aucun
-
-### P1 - Important
-- ✅ ~~Historique retraits temps réel~~
-- ✅ ~~Messagerie temps réel~~
-
-### P2 - À venir
-- Migration du code `server.py` vers les modules `routes/`
-- Configuration ingress pour WebSocket externe
-
-### Futur
-- Envoi réel d'emails (SendGrid/Mailgun)
-- Notifications push
-- Panel admin complet
-
----
-
-## Code Architecture
+## Architecture Backend
 ```
-/app
-├── backend/
-│   ├── server.py              # API principale
-│   ├── routes/                # Structure pour refactoring
-│   │   ├── __init__.py
-│   │   ├── auth.py
-│   │   ├── messages.py
-│   │   └── ...
-│   ├── models/               # Modèles Pydantic
-│   │   └── __init__.py
-│   ├── services/
-│   │   └── paypal_service.py
-│   └── .env
-└── frontend/
-    ├── app/
-    │   ├── (auth)/           # Pages authentification
-    │   ├── (tabs)/           # Navigation principale
-    │   ├── dj/               # Pages DJ
-    │   ├── messages/         # Chat temps réel
-    │   └── booking/          # Réservations
-    └── src/
-        ├── components/       # Composants réutilisables
-        └── services/         # API client
+/app/backend/
+├── server.py              # API principale (~2700 lignes)
+├── services/
+│   ├── paypal_service.py  # PayPal Payouts
+│   ├── email_service.py   # Email (Mock)
+│   └── push_service.py    # Push Notifications (Expo)
+├── routes/                # Structure pour refactoring
+└── models/                # Modèles Pydantic
 ```
+
+## Architecture Frontend
+```
+/app/frontend/app/
+├── admin/
+│   ├── index.tsx          # Dashboard admin
+│   ├── users.tsx          # Gestion utilisateurs
+│   ├── reviews.tsx        # Modération avis
+│   └── withdrawals.tsx    # Gestion retraits
+├── dj/
+│   ├── wallet.tsx         # Portefeuille
+│   └── withdrawal-history.tsx  # Historique temps réel
+└── messages/
+    └── [partnerId].tsx    # Chat temps réel
+```
+
+## MOCKED / Non Fonctionnel
+- **Email**: Templates créés mais pas d'envoi réel (mock logging)
+- **Push Notifications**: Service prêt, nécessite tokens Expo des devices
+- **WebSocket externe**: 502 via Kubernetes ingress (fonctionne en interne)
+
+## Backlog Futur
+1. Configurer ingress Kubernetes pour WebSocket
+2. Intégrer SendGrid/Mailgun pour vrais emails
+3. Configurer Expo Push pour notifications réelles
+4. Migrer code de server.py vers modules routes/

@@ -5,464 +5,297 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  TextInput,
-  Alert,
   ActivityIndicator,
   RefreshControl,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import axios from 'axios';
-import { Button } from '../../src/components/Button';
-import { Input } from '../../src/components/Input';
-import { goBack } from '../../src/utils/navigation';
-import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { LinearGradient } from 'expo-linear-gradient';
+import api from '../../src/services/api';
+import { useAuthStore } from '../../src/store/authStore';
+import { NEON_COLORS, NeonBackgroundSimple } from '../../src/components/NeonBackground';
+import { NeonAlert, useNeonAlert } from '../../src/components/NeonAlert';
 
-const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://neon-dj-connect.preview.emergentagent.com';
-
-interface DashboardData {
-  wallet: {
-    balance: number;
-    total_earned: number;
-    total_withdrawn: number;
+interface AdminStats {
+  users: {
+    total: number;
+    djs: number;
+    organizers: number;
+    active_djs: number;
   };
-  statistics: {
-    total_users: number;
-    total_djs: number;
-    total_organizers: number;
-    total_bookings: number;
-    total_paid_bookings: number;
-    total_events: number;
-    commission_rate: string;
+  bookings: {
+    total: number;
+    completed: number;
+    pending: number;
+    completion_rate: number;
   };
-  recent_commissions: any[];
+  revenue: {
+    total_volume: number;
+    platform_commission: number;
+  };
+  withdrawals: {
+    total: number;
+    pending: number;
+  };
+  reviews: {
+    total: number;
+    average_rating: number;
+  };
+  events: {
+    total: number;
+  };
 }
 
-export default function AdminScreen() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+export default function AdminDashboard() {
+  const { user } = useAuthStore();
+  const [stats, setStats] = useState<AdminStats | null>(null);
   const [loading, setLoading] = useState(true);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [loginLoading, setLoginLoading] = useState(false);
-  const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState('dashboard');
-  const [commissions, setCommissions] = useState<any[]>([]);
-  const [withdrawAmount, setWithdrawAmount] = useState('');
-  const [bankName, setBankName] = useState('');
-  const [iban, setIban] = useState('');
+  const { alert, showAlert, hideAlert } = useNeonAlert();
 
   useEffect(() => {
-    checkAuth();
-  }, []);
-
-  const checkAuth = async () => {
-    const token = await AsyncStorage.getItem('admin_token');
-    if (token) {
-      setIsLoggedIn(true);
-      await loadDashboard(token);
-    }
-    setLoading(false);
-  };
-
-  const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert('Erreur', 'Veuillez remplir tous les champs');
+    if (user?.user_type !== 'admin') {
+      showAlert('error', 'Accès refusé', 'Vous devez être administrateur pour accéder à cette page.');
+      router.replace('/');
       return;
     }
+    loadStats();
+  }, [user]);
 
-    setLoginLoading(true);
+  const loadStats = async () => {
     try {
-      const response = await axios.post(`${API_URL}/api/admin/login`, {
-        email,
-        password,
-      });
-      
-      await AsyncStorage.setItem('admin_token', response.data.access_token);
-      setIsLoggedIn(true);
-      await loadDashboard(response.data.access_token);
+      const response = await api.get('/admin/stats');
+      setStats(response.data);
     } catch (error: any) {
-      Alert.alert('Erreur', error.response?.data?.detail || 'Connexion échouée');
+      showAlert('error', 'Erreur', 'Impossible de charger les statistiques.');
     } finally {
-      setLoginLoading(false);
+      setLoading(false);
     }
-  };
-
-  const loadDashboard = async (token: string) => {
-    try {
-      const response = await axios.get(`${API_URL}/api/admin/dashboard`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setDashboard(response.data);
-      setCommissions(response.data.recent_commissions || []);
-    } catch (error) {
-      console.error('Error loading dashboard:', error);
-    }
-  };
-
-  const loadCommissions = async () => {
-    const token = await AsyncStorage.getItem('admin_token');
-    if (!token) return;
-    
-    try {
-      const response = await axios.get(`${API_URL}/api/admin/commissions`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setCommissions(response.data.commissions || []);
-    } catch (error) {
-      console.error('Error loading commissions:', error);
-    }
-  };
-
-  const handleWithdrawal = async () => {
-    const amount = parseFloat(withdrawAmount);
-    if (!amount || amount <= 0) {
-      Alert.alert('Erreur', 'Veuillez entrer un montant valide');
-      return;
-    }
-
-    if (!bankName || !iban) {
-      Alert.alert('Erreur', 'Veuillez remplir les informations bancaires');
-      return;
-    }
-
-    if (dashboard && amount > dashboard.wallet.balance) {
-      Alert.alert('Erreur', 'Solde insuffisant');
-      return;
-    }
-
-    const token = await AsyncStorage.getItem('admin_token');
-    if (!token) return;
-
-    try {
-      await axios.post(
-        `${API_URL}/api/admin/withdrawal`,
-        null,
-        {
-          params: {
-            amount,
-            bank_details: JSON.stringify({ bank_name: bankName, iban }),
-          },
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
-      
-      Alert.alert('Succès', 'Demande de retrait soumise avec succès');
-      setWithdrawAmount('');
-      await loadDashboard(token);
-    } catch (error: any) {
-      Alert.alert('Erreur', error.response?.data?.detail || 'Échec du retrait');
-    }
-  };
-
-  const handleLogout = async () => {
-    await AsyncStorage.removeItem('admin_token');
-    setIsLoggedIn(false);
-    setDashboard(null);
   };
 
   const onRefresh = async () => {
     setRefreshing(true);
-    const token = await AsyncStorage.getItem('admin_token');
-    if (token) {
-      await loadDashboard(token);
-    }
+    await loadStats();
     setRefreshing(false);
   };
 
+  const StatCard = ({ 
+    title, 
+    value, 
+    subtitle, 
+    icon, 
+    color = NEON_COLORS.cyan,
+    onPress 
+  }: { 
+    title: string; 
+    value: string | number; 
+    subtitle?: string;
+    icon: string; 
+    color?: string;
+    onPress?: () => void;
+  }) => (
+    <TouchableOpacity 
+      style={styles.statCard}
+      onPress={onPress}
+      disabled={!onPress}
+      activeOpacity={onPress ? 0.7 : 1}
+    >
+      <View style={[styles.statIconContainer, { backgroundColor: `${color}20` }]}>
+        <Ionicons name={icon as any} size={24} color={color} />
+      </View>
+      <Text style={styles.statTitle}>{title}</Text>
+      <Text style={[styles.statValue, { color }]}>{value}</Text>
+      {subtitle && <Text style={styles.statSubtitle}>{subtitle}</Text>}
+    </TouchableOpacity>
+  );
+
+  const MenuCard = ({ 
+    title, 
+    description, 
+    icon, 
+    color,
+    onPress 
+  }: { 
+    title: string; 
+    description: string;
+    icon: string; 
+    color: string;
+    onPress: () => void;
+  }) => (
+    <TouchableOpacity style={styles.menuCard} onPress={onPress} activeOpacity={0.7}>
+      <View style={[styles.menuIconContainer, { backgroundColor: `${color}20` }]}>
+        <Ionicons name={icon as any} size={28} color={color} />
+      </View>
+      <View style={styles.menuTextContainer}>
+        <Text style={styles.menuTitle}>{title}</Text>
+        <Text style={styles.menuDescription}>{description}</Text>
+      </View>
+      <Ionicons name="chevron-forward" size={20} color={NEON_COLORS.textSecondary} />
+    </TouchableOpacity>
+  );
+
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#6C5CE7" />
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  if (!isLoggedIn) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={goBack}>
-            <Ionicons name="arrow-back" size={24} color="#fff" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Administration</Text>
-          <View style={styles.headerRight} />
-        </View>
-
-        <ScrollView contentContainerStyle={styles.loginContent}>
-          <View style={styles.loginCard}>
-            <Ionicons name="shield-checkmark" size={60} color="#6C5CE7" />
-            <Text style={styles.loginTitle}>Connexion Admin</Text>
-            <Text style={styles.loginSubtitle}>Accédez au tableau de bord</Text>
-
-            <Input
-              label="Email"
-              value={email}
-              onChangeText={setEmail}
-              placeholder="admin@djbooking.com"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              leftIcon="mail"
-            />
-
-            <Input
-              label="Mot de passe"
-              value={password}
-              onChangeText={setPassword}
-              placeholder="Mot de passe"
-              secureTextEntry
-              leftIcon="lock-closed"
-            />
-
-            <Button
-              title="Se connecter"
-              onPress={handleLogin}
-              loading={loginLoading}
-              style={styles.loginButton}
-            />
+      <NeonBackgroundSimple>
+        <SafeAreaView style={styles.container}>
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={NEON_COLORS.cyan} />
+            <Text style={styles.loadingText}>Chargement du dashboard...</Text>
           </View>
-        </ScrollView>
-      </SafeAreaView>
+        </SafeAreaView>
+      </NeonBackgroundSimple>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={goBack}>
-          <Ionicons name="arrow-back" size={24} color="#fff" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Administration</Text>
-        <TouchableOpacity onPress={handleLogout}>
-          <Ionicons name="log-out-outline" size={24} color="#E74C3C" />
-        </TouchableOpacity>
-      </View>
-
-      {/* Tabs */}
-      <View style={styles.tabs}>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'dashboard' && styles.tabActive]}
-          onPress={() => setActiveTab('dashboard')}
-        >
-          <Ionicons
-            name="stats-chart"
-            size={20}
-            color={activeTab === 'dashboard' ? '#fff' : '#636E72'}
-          />
-          <Text style={[styles.tabText, activeTab === 'dashboard' && styles.tabTextActive]}>
-            Dashboard
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'commissions' && styles.tabActive]}
-          onPress={() => {
-            setActiveTab('commissions');
-            loadCommissions();
-          }}
-        >
-          <Ionicons
-            name="cash"
-            size={20}
-            color={activeTab === 'commissions' ? '#fff' : '#636E72'}
-          />
-          <Text style={[styles.tabText, activeTab === 'commissions' && styles.tabTextActive]}>
-            Commissions
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'withdraw' && styles.tabActive]}
-          onPress={() => setActiveTab('withdraw')}
-        >
-          <Ionicons
-            name="wallet"
-            size={20}
-            color={activeTab === 'withdraw' ? '#fff' : '#636E72'}
-          />
-          <Text style={[styles.tabText, activeTab === 'withdraw' && styles.tabTextActive]}>
-            Retrait
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView
-        style={styles.content}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#6C5CE7" />
-        }
-      >
-        {activeTab === 'dashboard' && dashboard && (
-          <>
-            {/* Wallet Card */}
-            <View style={styles.walletCard}>
-              <Text style={styles.walletLabel}>Solde disponible</Text>
-              <Text style={styles.walletBalance}>{dashboard.wallet.balance.toFixed(2)}€</Text>
-              <View style={styles.walletStats}>
-                <View style={styles.walletStat}>
-                  <Text style={styles.walletStatLabel}>Total gagné</Text>
-                  <Text style={styles.walletStatValue}>{dashboard.wallet.total_earned.toFixed(2)}€</Text>
-                </View>
-                <View style={styles.walletStatDivider} />
-                <View style={styles.walletStat}>
-                  <Text style={styles.walletStatLabel}>Total retiré</Text>
-                  <Text style={styles.walletStatValue}>{dashboard.wallet.total_withdrawn.toFixed(2)}€</Text>
-                </View>
-              </View>
-            </View>
-
-            {/* Commission Rate */}
-            <View style={styles.rateCard}>
-              <Ionicons name="trending-up" size={24} color="#00B894" />
-              <Text style={styles.rateText}>Taux de commission: {dashboard.statistics.commission_rate}</Text>
-              <Text style={styles.rateSubtext}>(7.5% DJ + 7.5% Organisateur)</Text>
-            </View>
-
-            {/* Stats Grid */}
-            <View style={styles.statsGrid}>
-              <View style={styles.statCard}>
-                <Ionicons name="people" size={28} color="#6C5CE7" />
-                <Text style={styles.statValue}>{dashboard.statistics.total_users}</Text>
-                <Text style={styles.statLabel}>Utilisateurs</Text>
-              </View>
-              <View style={styles.statCard}>
-                <Ionicons name="disc" size={28} color="#00B894" />
-                <Text style={styles.statValue}>{dashboard.statistics.total_djs}</Text>
-                <Text style={styles.statLabel}>DJs</Text>
-              </View>
-              <View style={styles.statCard}>
-                <Ionicons name="calendar" size={28} color="#F39C12" />
-                <Text style={styles.statValue}>{dashboard.statistics.total_events}</Text>
-                <Text style={styles.statLabel}>Événements</Text>
-              </View>
-              <View style={styles.statCard}>
-                <Ionicons name="checkmark-circle" size={28} color="#3498DB" />
-                <Text style={styles.statValue}>{dashboard.statistics.total_paid_bookings}</Text>
-                <Text style={styles.statLabel}>Réservations payées</Text>
-              </View>
-            </View>
-          </>
-        )}
-
-        {activeTab === 'commissions' && (
-          <View style={styles.commissionsSection}>
-            <Text style={styles.sectionTitle}>Historique des commissions</Text>
-            {commissions.length === 0 ? (
-              <View style={styles.emptyState}>
-                <Ionicons name="cash-outline" size={60} color="#636E72" />
-                <Text style={styles.emptyText}>Aucune commission</Text>
-              </View>
-            ) : (
-              commissions.map((commission) => (
-                <View key={commission.id} style={styles.commissionCard}>
-                  <View style={styles.commissionHeader}>
-                    <Text style={styles.commissionAmount}>+{commission.total_commission?.toFixed(2) || 0}€</Text>
-                    <View style={[
-                      styles.statusBadge,
-                      { backgroundColor: commission.status === 'credited' ? '#00B894' : '#F39C12' }
-                    ]}>
-                      <Text style={styles.statusText}>
-                        {commission.status === 'credited' ? 'Crédité' : 'En attente'}
-                      </Text>
-                    </View>
-                  </View>
-                  <Text style={styles.commissionEvent}>
-                    {commission.event_title || 'Événement'}
-                  </Text>
-                  <View style={styles.commissionDetails}>
-                    <Text style={styles.commissionDetail}>
-                      DJ: {commission.dj_commission?.toFixed(2) || 0}€
-                    </Text>
-                    <Text style={styles.commissionDetail}>
-                      Org: {commission.organizer_commission?.toFixed(2) || 0}€
-                    </Text>
-                  </View>
-                  <Text style={styles.commissionDate}>
-                    {commission.created_at ? 
-                      format(new Date(commission.created_at), 'd MMM yyyy HH:mm', { locale: fr }) 
-                      : 'N/A'}
-                  </Text>
-                </View>
-              ))
-            )}
+    <NeonBackgroundSimple>
+      <SafeAreaView style={styles.container}>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+            <Ionicons name="arrow-back" size={24} color="#fff" />
+          </TouchableOpacity>
+          <View style={styles.headerTextContainer}>
+            <Text style={styles.title}>Admin Dashboard</Text>
+            <Text style={styles.subtitle}>Gestion de la plateforme</Text>
           </View>
-        )}
+          <View style={styles.adminBadge}>
+            <Ionicons name="shield-checkmark" size={20} color={NEON_COLORS.magenta} />
+          </View>
+        </View>
 
-        {activeTab === 'withdraw' && (
-          <View style={styles.withdrawSection}>
-            <Text style={styles.sectionTitle}>Demande de retrait</Text>
-            
-            <View style={styles.balanceInfo}>
-              <Text style={styles.balanceLabel}>Solde disponible</Text>
-              <Text style={styles.balanceValue}>{dashboard?.wallet.balance.toFixed(2) || 0}€</Text>
-            </View>
-
-            <Input
-              label="Montant à retirer (€)"
-              value={withdrawAmount}
-              onChangeText={setWithdrawAmount}
-              keyboardType="numeric"
-              placeholder="100.00"
-              leftIcon="cash"
+        <ScrollView
+          style={styles.content}
+          contentContainerStyle={styles.contentContainer}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={NEON_COLORS.cyan} />
+          }
+        >
+          {/* Stats Overview */}
+          <Text style={styles.sectionTitle}>Vue d'ensemble</Text>
+          <View style={styles.statsGrid}>
+            <StatCard
+              title="Utilisateurs"
+              value={stats?.users.total || 0}
+              subtitle={`${stats?.users.djs || 0} DJs • ${stats?.users.organizers || 0} Orga`}
+              icon="people"
+              color={NEON_COLORS.cyan}
+              onPress={() => router.push('/admin/users')}
             />
-
-            <Input
-              label="Nom de la banque"
-              value={bankName}
-              onChangeText={setBankName}
-              placeholder="BNP Paribas"
-              leftIcon="business"
+            <StatCard
+              title="DJs Actifs"
+              value={stats?.users.active_djs || 0}
+              icon="musical-notes"
+              color={NEON_COLORS.magenta}
             />
-
-            <Input
-              label="IBAN"
-              value={iban}
-              onChangeText={setIban}
-              placeholder="FR76 1234 5678 9012 3456 7890 123"
-              autoCapitalize="characters"
-              leftIcon="card"
+            <StatCard
+              title="Réservations"
+              value={stats?.bookings.total || 0}
+              subtitle={`${stats?.bookings.completion_rate || 0}% complétées`}
+              icon="calendar"
+              color={NEON_COLORS.green}
+              onPress={() => router.push('/admin/bookings')}
             />
-
-            <View style={styles.withdrawNote}>
-              <Ionicons name="information-circle" size={20} color="#F39C12" />
-              <Text style={styles.withdrawNoteText}>
-                Les retraits sont traités sous 3-5 jours ouvrés.
-                Un email de confirmation vous sera envoyé.
-              </Text>
-            </View>
-
-            <Button
-              title="Demander le retrait"
-              onPress={handleWithdrawal}
-              disabled={!withdrawAmount || parseFloat(withdrawAmount) <= 0}
+            <StatCard
+              title="Commission"
+              value={`${(stats?.revenue.platform_commission || 0).toFixed(0)}€`}
+              subtitle={`Vol: ${(stats?.revenue.total_volume || 0).toFixed(0)}€`}
+              icon="cash"
+              color="#F39C12"
+            />
+            <StatCard
+              title="Retraits"
+              value={stats?.withdrawals.pending || 0}
+              subtitle="en attente"
+              icon="wallet"
+              color="#E74C3C"
+              onPress={() => router.push('/admin/withdrawals')}
+            />
+            <StatCard
+              title="Avis"
+              value={stats?.reviews.total || 0}
+              subtitle={`${stats?.reviews.average_rating || 0}⭐ moyenne`}
+              icon="star"
+              color="#9B59B6"
+              onPress={() => router.push('/admin/reviews')}
             />
           </View>
-        )}
 
-        <View style={styles.bottomPadding} />
-      </ScrollView>
-    </SafeAreaView>
+          {/* Quick Actions */}
+          <Text style={styles.sectionTitle}>Gestion</Text>
+          <View style={styles.menuSection}>
+            <MenuCard
+              title="Utilisateurs"
+              description="Gérer les DJs et organisateurs"
+              icon="people-outline"
+              color={NEON_COLORS.cyan}
+              onPress={() => router.push('/admin/users')}
+            />
+            <MenuCard
+              title="Modération Avis"
+              description="Approuver ou supprimer des avis"
+              icon="chatbubbles-outline"
+              color="#9B59B6"
+              onPress={() => router.push('/admin/reviews')}
+            />
+            <MenuCard
+              title="Retraits"
+              description="Gérer les demandes de retrait"
+              icon="card-outline"
+              color="#E74C3C"
+              onPress={() => router.push('/admin/withdrawals')}
+            />
+            <MenuCard
+              title="Réservations"
+              description="Voir toutes les réservations"
+              icon="calendar-outline"
+              color={NEON_COLORS.green}
+              onPress={() => router.push('/admin/bookings')}
+            />
+            <MenuCard
+              title="Profils DJ"
+              description="Vérifier et mettre en avant des DJs"
+              icon="disc-outline"
+              color={NEON_COLORS.magenta}
+              onPress={() => router.push('/admin/dj-profiles')}
+            />
+          </View>
+
+          <View style={styles.bottomPadding} />
+        </ScrollView>
+
+        <NeonAlert
+          visible={alert.visible}
+          type={alert.type}
+          title={alert.title}
+          message={alert.message}
+          onClose={hideAlert}
+        />
+      </SafeAreaView>
+    </NeonBackgroundSimple>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0c0c0c',
   },
   loadingContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: NEON_COLORS.textSecondary,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
@@ -470,253 +303,117 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#1E1E1E',
+    backgroundColor: NEON_COLORS.card,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#fff',
+  headerTextContainer: {
+    flex: 1,
+    marginLeft: 16,
   },
-  headerRight: {
-    width: 44,
-  },
-  loginContent: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    padding: 20,
-  },
-  loginCard: {
-    backgroundColor: '#1E1E1E',
-    borderRadius: 24,
-    padding: 24,
-    alignItems: 'center',
-  },
-  loginTitle: {
+  title: {
     fontSize: 24,
     fontWeight: '700',
     color: '#fff',
-    marginTop: 16,
-    marginBottom: 8,
+    textShadowColor: NEON_COLORS.magenta,
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 10,
   },
-  loginSubtitle: {
+  subtitle: {
     fontSize: 14,
-    color: '#636E72',
-    marginBottom: 24,
+    color: NEON_COLORS.textSecondary,
+    marginTop: 2,
   },
-  loginButton: {
-    width: '100%',
-    marginTop: 8,
-  },
-  tabs: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
-    marginBottom: 16,
-  },
-  tab: {
-    flex: 1,
-    flexDirection: 'row',
+  adminBadge: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: `${NEON_COLORS.magenta}20`,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
-    gap: 8,
-    borderRadius: 12,
-    backgroundColor: '#1E1E1E',
-    marginHorizontal: 4,
-  },
-  tabActive: {
-    backgroundColor: '#6C5CE7',
-  },
-  tabText: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#636E72',
-  },
-  tabTextActive: {
-    color: '#fff',
   },
   content: {
     flex: 1,
-    paddingHorizontal: 20,
   },
-  walletCard: {
-    backgroundColor: '#6C5CE7',
-    borderRadius: 20,
-    padding: 24,
-    marginBottom: 16,
+  contentContainer: {
+    padding: 16,
   },
-  walletLabel: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.7)',
-    marginBottom: 8,
-  },
-  walletBalance: {
-    fontSize: 40,
-    fontWeight: '700',
-    color: '#fff',
-    marginBottom: 20,
-  },
-  walletStats: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-  },
-  walletStat: {
-    alignItems: 'center',
-  },
-  walletStatLabel: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.7)',
-    marginBottom: 4,
-  },
-  walletStatValue: {
+  sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
     color: '#fff',
-  },
-  walletStatDivider: {
-    width: 1,
-    backgroundColor: 'rgba(255,255,255,0.3)',
-  },
-  rateCard: {
-    backgroundColor: '#1E1E1E',
-    borderRadius: 16,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 20,
-    gap: 12,
-  },
-  rateText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#fff',
-    flex: 1,
-  },
-  rateSubtext: {
-    fontSize: 12,
-    color: '#636E72',
+    marginBottom: 16,
+    marginTop: 8,
   },
   statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 12,
+    marginBottom: 24,
   },
   statCard: {
-    width: '47%',
-    backgroundColor: '#1E1E1E',
+    width: '48%' as any,
+    backgroundColor: NEON_COLORS.card,
     borderRadius: 16,
-    padding: 20,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: NEON_COLORS.cardBorder,
+    minWidth: 140,
+  },
+  statIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
     alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  statTitle: {
+    fontSize: 12,
+    color: NEON_COLORS.textSecondary,
+    marginBottom: 4,
   },
   statValue: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#fff',
-    marginTop: 12,
   },
-  statLabel: {
-    fontSize: 14,
-    color: '#636E72',
+  statSubtitle: {
+    fontSize: 11,
+    color: NEON_COLORS.textSecondary,
     marginTop: 4,
   },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#fff',
-    marginBottom: 16,
+  menuSection: {
+    gap: 12,
   },
-  commissionsSection: {
-    flex: 1,
-  },
-  emptyState: {
+  menuCard: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 40,
-  },
-  emptyText: {
-    fontSize: 16,
-    color: '#636E72',
-    marginTop: 16,
-  },
-  commissionCard: {
-    backgroundColor: '#1E1E1E',
+    backgroundColor: NEON_COLORS.card,
     borderRadius: 16,
     padding: 16,
-    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: NEON_COLORS.cardBorder,
   },
-  commissionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  menuIconContainer: {
+    width: 50,
+    height: 50,
+    borderRadius: 12,
     alignItems: 'center',
-    marginBottom: 8,
+    justifyContent: 'center',
   },
-  commissionAmount: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#00B894',
+  menuTextContainer: {
+    flex: 1,
+    marginLeft: 16,
   },
-  statusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 10,
-  },
-  statusText: {
-    fontSize: 12,
+  menuTitle: {
+    fontSize: 16,
     fontWeight: '600',
     color: '#fff',
   },
-  commissionEvent: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#fff',
-    marginBottom: 8,
-  },
-  commissionDetails: {
-    flexDirection: 'row',
-    gap: 16,
-    marginBottom: 8,
-  },
-  commissionDetail: {
-    fontSize: 14,
-    color: '#B2BEC3',
-  },
-  commissionDate: {
-    fontSize: 12,
-    color: '#636E72',
-  },
-  withdrawSection: {
-    flex: 1,
-  },
-  balanceInfo: {
-    backgroundColor: '#1E1E1E',
-    borderRadius: 16,
-    padding: 20,
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  balanceLabel: {
-    fontSize: 14,
-    color: '#636E72',
-    marginBottom: 8,
-  },
-  balanceValue: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: '#00B894',
-  },
-  withdrawNote: {
-    flexDirection: 'row',
-    backgroundColor: '#2D3436',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 20,
-    gap: 12,
-  },
-  withdrawNoteText: {
-    flex: 1,
-    fontSize: 14,
-    color: '#B2BEC3',
-    lineHeight: 20,
+  menuDescription: {
+    fontSize: 13,
+    color: NEON_COLORS.textSecondary,
+    marginTop: 2,
   },
   bottomPadding: {
     height: 40,

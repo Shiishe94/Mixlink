@@ -2312,6 +2312,425 @@ async def get_pending_reviews(current_user: dict = Depends(get_current_user)):
     
     return serialize_doc(pending_reviews)
 
+# ==================== ADMIN ROUTES ====================
+
+async def verify_admin_access(current_user: dict = Depends(get_current_user)):
+    """Dependency to verify admin access via user_type"""
+    if current_user.get("user_type") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return current_user
+
+# Admin Dashboard Stats
+@api_router.get("/admin/stats")
+async def get_admin_stats(admin: dict = Depends(verify_admin_access)):
+    """Get platform statistics for admin dashboard"""
+    
+    # Count users by type
+    total_users = await db.users.count_documents({})
+    total_djs = await db.users.count_documents({"user_type": "dj"})
+    total_organizers = await db.users.count_documents({"user_type": "organizer"})
+    
+    # Count DJ profiles
+    active_djs = await db.dj_profiles.count_documents({"available": True})
+    
+    # Count bookings by status
+    total_bookings = await db.bookings.count_documents({})
+    completed_bookings = await db.bookings.count_documents({"status": "completed"})
+    pending_bookings = await db.bookings.count_documents({"status": "pending"})
+    
+    # Calculate revenue (platform commission)
+    pipeline = [
+        {"$match": {"status": "completed"}},
+        {"$group": {"_id": None, "total": {"$sum": "$price"}}}
+    ]
+    revenue_result = await db.bookings.aggregate(pipeline).to_list(1)
+    total_revenue = revenue_result[0]["total"] if revenue_result else 0
+    platform_commission = total_revenue * 0.15  # 15% commission
+    
+    # Count withdrawals
+    total_withdrawals = await db.withdrawals.count_documents({})
+    pending_withdrawals = await db.withdrawals.count_documents({"status": "pending"})
+    
+    # Count reviews
+    total_reviews = await db.reviews.count_documents({})
+    
+    # Average rating
+    rating_pipeline = [
+        {"$group": {"_id": None, "avg_rating": {"$avg": "$rating"}}}
+    ]
+    rating_result = await db.reviews.aggregate(rating_pipeline).to_list(1)
+    avg_rating = rating_result[0]["avg_rating"] if rating_result else 0
+    
+    # Count events
+    total_events = await db.events.count_documents({})
+    
+    return {
+        "users": {
+            "total": total_users,
+            "djs": total_djs,
+            "organizers": total_organizers,
+            "active_djs": active_djs
+        },
+        "bookings": {
+            "total": total_bookings,
+            "completed": completed_bookings,
+            "pending": pending_bookings,
+            "completion_rate": round(completed_bookings / total_bookings * 100, 1) if total_bookings > 0 else 0
+        },
+        "revenue": {
+            "total_volume": round(total_revenue, 2),
+            "platform_commission": round(platform_commission, 2)
+        },
+        "withdrawals": {
+            "total": total_withdrawals,
+            "pending": pending_withdrawals
+        },
+        "reviews": {
+            "total": total_reviews,
+            "average_rating": round(avg_rating, 2) if avg_rating else 0
+        },
+        "events": {
+            "total": total_events
+        }
+    }
+
+# Admin Users Management (New System)
+@api_router.get("/admin/v2/users")
+async def get_all_users_v2(
+    admin: dict = Depends(verify_admin_access),
+    user_type: Optional[str] = None,
+    skip: int = 0,
+    limit: int = 50
+):
+    """Get all users with pagination and filtering"""
+    query = {}
+    if user_type:
+        query["user_type"] = user_type
+    
+    users = await db.users.find(query, {"password": 0}).skip(skip).limit(limit).to_list(limit)
+    total = await db.users.count_documents(query)
+    
+    # Enrich DJ users with profile data
+    enriched_users = []
+    for user in users:
+        user_data = serialize_doc(user)
+        if user.get("user_type") == "dj":
+            profile = await db.dj_profiles.find_one({"user_id": user["id"]})
+            if profile:
+                user_data["dj_profile"] = serialize_doc(profile)
+        enriched_users.append(user_data)
+    
+    return {
+        "users": enriched_users,
+        "total": total,
+        "skip": skip,
+        "limit": limit
+    }
+
+@api_router.put("/admin/v2/users/{user_id}/status")
+async def update_user_status(
+    user_id: str,
+    status_update: Dict[str, Any],
+    admin: dict = Depends(verify_admin_access)
+):
+    """Update user status (ban/unban, verify, etc.)"""
+    allowed_fields = ["is_banned", "is_verified", "is_active"]
+    update_data = {k: v for k, v in status_update.items() if k in allowed_fields}
+    
+    if not update_data:
+        raise HTTPException(status_code=400, detail="No valid fields to update")
+    
+    result = await db.users.update_one(
+        {"id": user_id},
+        {"$set": update_data}
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    return {"message": "User status updated", "updated_fields": list(update_data.keys())}
+
+@api_router.delete("/admin/v2/users/{user_id}")
+async def delete_user(user_id: str, admin: dict = Depends(verify_admin_access)):
+    """Delete a user and all associated data"""
+    user = await db.users.find_one({"id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Delete associated data
+    if user.get("user_type") == "dj":
+        await db.dj_profiles.delete_many({"user_id": user_id})
+        await db.withdrawals.delete_many({"user_id": user_id})
+    
+    await db.bookings.delete_many({"$or": [{"dj_id": user_id}, {"organizer_id": user_id}]})
+    await db.events.delete_many({"organizer_id": user_id})
+    await db.messages.delete_many({"$or": [{"sender_id": user_id}, {"receiver_id": user_id}]})
+    await db.reviews.delete_many({"$or": [{"dj_id": user_id}, {"organizer_id": user_id}]})
+    await db.users.delete_one({"id": user_id})
+    
+    return {"message": f"User {user_id} and associated data deleted"}
+
+# Admin Reviews Moderation
+@api_router.get("/admin/v2/reviews")
+async def get_all_reviews(
+    admin: dict = Depends(verify_admin_access),
+    skip: int = 0,
+    limit: int = 50,
+    flagged_only: bool = False
+):
+    """Get all reviews for moderation"""
+    query = {}
+    if flagged_only:
+        query["is_flagged"] = True
+    
+    reviews = await db.reviews.find(query).sort("created_at", -1).skip(skip).limit(limit).to_list(limit)
+    total = await db.reviews.count_documents(query)
+    
+    # Enrich with user info
+    enriched_reviews = []
+    for review in reviews:
+        review_data = serialize_doc(review)
+        
+        # Get organizer info
+        organizer = await db.users.find_one({"id": review.get("organizer_id")}, {"password": 0})
+        if organizer:
+            review_data["organizer"] = serialize_doc(organizer)
+        
+        # Get DJ info
+        dj_profile = await db.dj_profiles.find_one({"id": review.get("dj_id")})
+        if dj_profile:
+            review_data["dj"] = serialize_doc(dj_profile)
+        
+        enriched_reviews.append(review_data)
+    
+    return {
+        "reviews": enriched_reviews,
+        "total": total,
+        "skip": skip,
+        "limit": limit
+    }
+
+@api_router.put("/admin/v2/reviews/{review_id}")
+async def moderate_review(
+    review_id: str,
+    moderation: Dict[str, Any],
+    admin: dict = Depends(verify_admin_access)
+):
+    """Moderate a review (approve, reject, flag)"""
+    allowed_actions = ["is_approved", "is_flagged", "is_hidden", "moderation_note"]
+    update_data = {k: v for k, v in moderation.items() if k in allowed_actions}
+    update_data["moderated_at"] = datetime.utcnow()
+    update_data["moderated_by"] = admin["id"]
+    
+    result = await db.reviews.update_one(
+        {"id": review_id},
+        {"$set": update_data}
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Review not found")
+    
+    return {"message": "Review moderated", "updated_fields": list(update_data.keys())}
+
+@api_router.delete("/admin/v2/reviews/{review_id}")
+async def delete_review(review_id: str, admin: dict = Depends(verify_admin_access)):
+    """Delete a review"""
+    result = await db.reviews.delete_one({"id": review_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Review not found")
+    return {"message": "Review deleted"}
+
+# Admin Payments & Withdrawals
+@api_router.get("/admin/v2/withdrawals")
+async def get_all_withdrawals_v2(
+    admin: dict = Depends(verify_admin_access),
+    status: Optional[str] = None,
+    skip: int = 0,
+    limit: int = 50
+):
+    """Get all withdrawal requests"""
+    query = {}
+    if status:
+        query["status"] = status
+    
+    withdrawals = await db.withdrawals.find(query).sort("created_at", -1).skip(skip).limit(limit).to_list(limit)
+    total = await db.withdrawals.count_documents(query)
+    
+    # Enrich with user info
+    enriched_withdrawals = []
+    for withdrawal in withdrawals:
+        withdrawal_data = serialize_doc(withdrawal)
+        
+        user = await db.users.find_one({"id": withdrawal.get("user_id")}, {"password": 0})
+        if user:
+            withdrawal_data["user"] = serialize_doc(user)
+        
+        dj_profile = await db.dj_profiles.find_one({"user_id": withdrawal.get("user_id")})
+        if dj_profile:
+            withdrawal_data["dj_profile"] = serialize_doc(dj_profile)
+        
+        enriched_withdrawals.append(withdrawal_data)
+    
+    return {
+        "withdrawals": enriched_withdrawals,
+        "total": total,
+        "skip": skip,
+        "limit": limit
+    }
+
+@api_router.put("/admin/v2/withdrawals/{withdrawal_id}")
+async def update_withdrawal_status(
+    withdrawal_id: str,
+    status_update: Dict[str, Any],
+    admin: dict = Depends(verify_admin_access)
+):
+    """Update withdrawal status (approve, reject, mark as completed)"""
+    allowed_fields = ["status", "admin_note", "transaction_id"]
+    update_data = {k: v for k, v in status_update.items() if k in allowed_fields}
+    
+    if "status" in update_data:
+        if update_data["status"] == "completed":
+            update_data["completed_at"] = datetime.utcnow()
+        elif update_data["status"] == "rejected":
+            update_data["rejected_at"] = datetime.utcnow()
+            # Return funds to user's available balance
+            withdrawal = await db.withdrawals.find_one({"id": withdrawal_id})
+            if withdrawal:
+                await db.users.update_one(
+                    {"id": withdrawal["user_id"]},
+                    {"$inc": {"available_balance": withdrawal["amount"]}}
+                )
+    
+    update_data["updated_by"] = admin["id"]
+    update_data["updated_at"] = datetime.utcnow()
+    
+    result = await db.withdrawals.update_one(
+        {"id": withdrawal_id},
+        {"$set": update_data}
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Withdrawal not found")
+    
+    # Broadcast update via WebSocket
+    withdrawal = await db.withdrawals.find_one({"id": withdrawal_id})
+    if withdrawal:
+        await broadcast_withdrawal_update(withdrawal["user_id"], serialize_doc(withdrawal))
+    
+    return {"message": "Withdrawal status updated", "updated_fields": list(update_data.keys())}
+
+@api_router.get("/admin/bookings")
+async def get_all_bookings(
+    admin: dict = Depends(verify_admin_access),
+    status: Optional[str] = None,
+    skip: int = 0,
+    limit: int = 50
+):
+    """Get all bookings for admin view"""
+    query = {}
+    if status:
+        query["status"] = status
+    
+    bookings = await db.bookings.find(query).sort("created_at", -1).skip(skip).limit(limit).to_list(limit)
+    total = await db.bookings.count_documents(query)
+    
+    # Enrich with user and event info
+    enriched_bookings = []
+    for booking in bookings:
+        booking_data = serialize_doc(booking)
+        
+        # Get DJ info
+        dj_profile = await db.dj_profiles.find_one({"id": booking.get("dj_id")})
+        if dj_profile:
+            booking_data["dj"] = serialize_doc(dj_profile)
+        
+        # Get organizer info
+        organizer = await db.users.find_one({"id": booking.get("organizer_id")}, {"password": 0})
+        if organizer:
+            booking_data["organizer"] = serialize_doc(organizer)
+        
+        # Get event info
+        event = await db.events.find_one({"id": booking.get("event_id")})
+        if event:
+            booking_data["event"] = serialize_doc(event)
+        
+        enriched_bookings.append(booking_data)
+    
+    return {
+        "bookings": enriched_bookings,
+        "total": total,
+        "skip": skip,
+        "limit": limit
+    }
+
+# Admin DJ Profiles Management
+@api_router.get("/admin/v2/dj-profiles")
+async def get_all_dj_profiles(
+    admin: dict = Depends(verify_admin_access),
+    skip: int = 0,
+    limit: int = 50
+):
+    """Get all DJ profiles for admin management"""
+    profiles = await db.dj_profiles.find().skip(skip).limit(limit).to_list(limit)
+    total = await db.dj_profiles.count_documents({})
+    
+    # Enrich with user info and stats
+    enriched_profiles = []
+    for profile in profiles:
+        profile_data = serialize_doc(profile)
+        
+        user = await db.users.find_one({"id": profile.get("user_id")}, {"password": 0})
+        if user:
+            profile_data["user"] = serialize_doc(user)
+        
+        # Get booking count
+        booking_count = await db.bookings.count_documents({"dj_id": profile.get("id")})
+        profile_data["total_bookings"] = booking_count
+        
+        # Get completed bookings
+        completed_count = await db.bookings.count_documents({"dj_id": profile.get("id"), "status": "completed"})
+        profile_data["completed_bookings"] = completed_count
+        
+        # Calculate earnings
+        earnings_pipeline = [
+            {"$match": {"dj_id": profile.get("id"), "status": "completed"}},
+            {"$group": {"_id": None, "total": {"$sum": "$price"}}}
+        ]
+        earnings_result = await db.bookings.aggregate(earnings_pipeline).to_list(1)
+        profile_data["total_earnings"] = earnings_result[0]["total"] if earnings_result else 0
+        
+        enriched_profiles.append(profile_data)
+    
+    return {
+        "profiles": enriched_profiles,
+        "total": total,
+        "skip": skip,
+        "limit": limit
+    }
+
+@api_router.put("/admin/v2/dj-profiles/{profile_id}")
+async def update_dj_profile_admin(
+    profile_id: str,
+    update_data: Dict[str, Any],
+    admin: dict = Depends(verify_admin_access)
+):
+    """Admin update of DJ profile (verify, feature, etc.)"""
+    allowed_fields = ["is_verified", "is_featured", "is_suspended", "admin_note"]
+    filtered_data = {k: v for k, v in update_data.items() if k in allowed_fields}
+    
+    if not filtered_data:
+        raise HTTPException(status_code=400, detail="No valid fields to update")
+    
+    result = await db.dj_profiles.update_one(
+        {"id": profile_id},
+        {"$set": filtered_data}
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="DJ profile not found")
+    
+    return {"message": "DJ profile updated", "updated_fields": list(filtered_data.keys())}
+
 # Include the router
 app.include_router(api_router)
 
