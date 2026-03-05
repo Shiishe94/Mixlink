@@ -1,13 +1,15 @@
 import React, { useEffect } from 'react';
 import { Stack, router, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, ActivityIndicator, StyleSheet, Platform, useWindowDimensions } from 'react-native';
 import { useAuthStore } from '../src/store/authStore';
 import { NEON_COLORS } from '../src/components/NeonBackground';
 
 export default function RootLayout() {
   const { isLoading, isAuthenticated, loadUser } = useAuthStore();
   const segments = useSegments();
+  const { width } = useWindowDimensions();
+  const isDesktop = Platform.OS === 'web' && width > 768;
 
   useEffect(() => {
     loadUser();
@@ -36,31 +38,57 @@ export default function RootLayout() {
   return (
     <>
       <StatusBar style="light" />
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          contentStyle: { backgroundColor: NEON_COLORS.background },
-          animation: 'slide_from_right',
-        }}
-      >
-        <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="dj/[id]" options={{ headerShown: false }} />
-        <Stack.Screen name="event/[id]" options={{ headerShown: false }} />
-        <Stack.Screen name="event/create" options={{ headerShown: false }} />
-        <Stack.Screen name="booking/[id]" options={{ headerShown: false }} />
-        <Stack.Screen name="messages/[partnerId]" options={{ headerShown: false }} />
-        <Stack.Screen name="admin/index" options={{ headerShown: false }} />
-        <Stack.Screen name="dj/wallet" options={{ headerShown: false }} />
-        <Stack.Screen name="payment/checkout" options={{ headerShown: false }} />
-        <Stack.Screen name="payment/success" options={{ headerShown: false }} />
-        <Stack.Screen name="payment/cancel" options={{ headerShown: false }} />
-      </Stack>
+      <View style={[styles.outerContainer, isDesktop && styles.desktopOuter]}>
+        <View style={[
+          styles.innerContainer,
+          isDesktop && styles.desktopInner,
+        ]}>
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              contentStyle: { backgroundColor: NEON_COLORS.background },
+              animation: 'slide_from_right',
+            }}
+          >
+            <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="dj/[id]" options={{ headerShown: false }} />
+            <Stack.Screen name="event/[id]" options={{ headerShown: false }} />
+            <Stack.Screen name="event/create" options={{ headerShown: false }} />
+            <Stack.Screen name="booking/[id]" options={{ headerShown: false }} />
+            <Stack.Screen name="messages/[partnerId]" options={{ headerShown: false }} />
+            <Stack.Screen name="admin/index" options={{ headerShown: false }} />
+            <Stack.Screen name="dj/wallet" options={{ headerShown: false }} />
+            <Stack.Screen name="payment/checkout" options={{ headerShown: false }} />
+            <Stack.Screen name="payment/success" options={{ headerShown: false }} />
+            <Stack.Screen name="payment/cancel" options={{ headerShown: false }} />
+          </Stack>
+        </View>
+      </View>
     </>
   );
 }
 
 const styles = StyleSheet.create({
+  outerContainer: {
+    flex: 1,
+    backgroundColor: NEON_COLORS.background,
+  },
+  innerContainer: {
+    flex: 1,
+    backgroundColor: NEON_COLORS.background,
+  },
+  desktopOuter: {
+    alignItems: 'center',
+    backgroundColor: '#050510',
+  },
+  desktopInner: {
+    maxWidth: 480,
+    width: '100%',
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderColor: 'rgba(0, 255, 255, 0.06)',
+  },
   loadingContainer: {
     flex: 1,
     backgroundColor: NEON_COLORS.background,

@@ -799,7 +799,7 @@ async def get_booking(booking_id: str, current_user: dict = Depends(get_current_
             }
         }
     
-    return booking
+    return serialize_doc(booking)
 
 @api_router.put("/bookings/{booking_id}/status")
 async def update_booking_status(
