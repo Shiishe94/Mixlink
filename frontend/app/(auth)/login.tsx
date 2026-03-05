@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Image,
+  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -107,9 +108,16 @@ export default function LoginScreen() {
           style={styles.keyboardView}
         >
           <ScrollView
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={[
+              styles.scrollContent,
+              Platform.OS === 'web' && { alignItems: 'center' },
+            ]}
             showsVerticalScrollIndicator={false}
           >
+            <View style={[
+              styles.formWrapper,
+              Platform.OS === 'web' && { maxWidth: 420, width: '100%' },
+            ]}>
             <View style={styles.header}>
               <Animated.View style={[styles.logoContainer, glowStyle]}>
                 <Image
@@ -183,6 +191,7 @@ export default function LoginScreen() {
                 <Text style={styles.registerLink}>Créer un compte</Text>
               </TouchableOpacity>
             </View>
+            </View>
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
@@ -208,6 +217,9 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingHorizontal: 24,
     justifyContent: 'center',
+  },
+  formWrapper: {
+    width: '100%',
   },
   header: {
     alignItems: 'center',

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Platform, useWindowDimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuthStore } from '../../src/store/authStore';
 import { NEON_COLORS } from '../../src/components/NeonBackground';
@@ -9,19 +9,23 @@ import { NEON_COLORS } from '../../src/components/NeonBackground';
 export default function TabsLayout() {
   const { user } = useAuthStore();
   const isDJ = user?.user_type === 'dj';
+  const { width } = useWindowDimensions();
+  const isDesktop = Platform.OS === 'web' && width > 768;
 
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarStyle: {
-          backgroundColor: NEON_COLORS.backgroundLight,
-          borderTopColor: NEON_COLORS.cardBorder,
-          borderTopWidth: 1,
-          height: 70,
-          paddingBottom: 10,
-          paddingTop: 10,
-        },
+        tabBarStyle: isDesktop
+          ? { display: 'none' }
+          : {
+              backgroundColor: NEON_COLORS.backgroundLight,
+              borderTopColor: NEON_COLORS.cardBorder,
+              borderTopWidth: 1,
+              height: 70,
+              paddingBottom: 10,
+              paddingTop: 10,
+            },
         tabBarActiveTintColor: NEON_COLORS.cyan,
         tabBarInactiveTintColor: NEON_COLORS.textMuted,
         tabBarLabelStyle: {

@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { View, ActivityIndicator, StyleSheet, Platform, useWindowDimensions } from 'react-native';
 import { useAuthStore } from '../src/store/authStore';
 import { NEON_COLORS } from '../src/components/NeonBackground';
+import { WebNavbar } from '../src/components/WebNavbar';
 
 export default function RootLayout() {
   const { isLoading, isAuthenticated, loadUser } = useAuthStore();
@@ -38,11 +39,9 @@ export default function RootLayout() {
   return (
     <>
       <StatusBar style="light" />
-      <View style={[styles.outerContainer, isDesktop && styles.desktopOuter]}>
-        <View style={[
-          styles.innerContainer,
-          isDesktop && styles.desktopInner,
-        ]}>
+      <View style={styles.outerContainer}>
+        <WebNavbar />
+        <View style={styles.innerContainer}>
           <Stack
             screenOptions={{
               headerShown: false,
@@ -77,17 +76,6 @@ const styles = StyleSheet.create({
   innerContainer: {
     flex: 1,
     backgroundColor: NEON_COLORS.background,
-  },
-  desktopOuter: {
-    alignItems: 'center',
-    backgroundColor: '#050510',
-  },
-  desktopInner: {
-    maxWidth: 480,
-    width: '100%',
-    borderLeftWidth: 1,
-    borderRightWidth: 1,
-    borderColor: 'rgba(0, 255, 255, 0.06)',
   },
   loadingContainer: {
     flex: 1,
