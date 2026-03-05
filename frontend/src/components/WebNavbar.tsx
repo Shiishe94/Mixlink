@@ -35,11 +35,11 @@ export const WebNavbar: React.FC = () => {
   const { user, isAuthenticated, logout } = useAuthStore();
   const segments = useSegments();
   const isDesktop = Platform.OS === 'web' && width > 768;
-
-  if (!isDesktop || !isAuthenticated) return null;
+  const [showUserMenu, setShowUserMenu] = React.useState(false);
 
   const currentSegment = segments[1] || segments[0] || '';
-  const [showUserMenu, setShowUserMenu] = React.useState(false);
+
+  if (!isDesktop || !isAuthenticated) return null;
 
   const handleLogout = async () => {
     setShowUserMenu(false);

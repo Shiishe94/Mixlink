@@ -1331,23 +1331,14 @@ async def complete_prestation(
         }}
     )
     
-    # Release DJ funds - move from pending to available
+    # Mark DJ earning as confirmed (funds stay pending for 24h before becoming available)
     dj_payout = booking.get("dj_payout", 0)
     
-    await db.dj_wallets.update_one(
-        {"dj_id": booking["dj_id"]},
-        {
-            "$inc": {"pending_balance": -dj_payout, "available_balance": dj_payout},
-            "$set": {"updated_at": datetime.utcnow()}
-        }
-    )
-    
-    # Update DJ earning status
     await db.dj_earnings.update_one(
         {"booking_id": booking_id},
         {"$set": {
-            "status": "released",
-            "released_at": datetime.utcnow()
+            "status": "pending",
+            "confirmed_at": datetime.utcnow()
         }}
     )
     
@@ -1358,21 +1349,47 @@ async def complete_prestation(
     )
     
     return serialize_doc({
-        "message": "Prestation confirmed as completed. DJ funds have been released.",
-        "dj_payout_released": dj_payout
+        "message": "Prestation confirmée. Les fonds du DJ seront disponibles dans 24h.",
+        "dj_payout": dj_payout,
+        "available_in_hours": 24
     })
 
 # ==================== DJ WALLET ROUTES ====================
 
 @api_router.get("/dj/wallet")
 async def get_dj_wallet(current_user: dict = Depends(get_current_user)):
-    """Get DJ's wallet with pending and available balances"""
+    """Get DJ's wallet with pending and available balances. Auto-releases funds 24h after prestation confirmation."""
     if current_user.get("user_type") != "dj":
         raise HTTPException(status_code=403, detail="Only DJs can access wallet")
     
     dj_profile = await db.dj_profiles.find_one({"user_id": current_user["id"]})
     if not dj_profile:
         raise HTTPException(status_code=404, detail="DJ profile not found")
+    
+    # Auto-release: move pending earnings to available if confirmed > 24h ago
+    cutoff = datetime.utcnow() - timedelta(hours=24)
+    pending_to_release = await db.dj_earnings.find({
+        "dj_id": dj_profile["id"],
+        "status": "pending",
+        "confirmed_at": {"$lte": cutoff, "$ne": None}
+    }).to_list(100)
+    
+    total_released = 0.0
+    for earning in pending_to_release:
+        await db.dj_earnings.update_one(
+            {"id": earning["id"]},
+            {"$set": {"status": "available", "released_at": datetime.utcnow()}}
+        )
+        total_released += earning.get("amount", 0)
+    
+    if total_released > 0:
+        await db.dj_wallets.update_one(
+            {"dj_id": dj_profile["id"]},
+            {
+                "$inc": {"pending_balance": -total_released, "available_balance": total_released},
+                "$set": {"updated_at": datetime.utcnow()}
+            }
+        )
     
     wallet = await db.dj_wallets.find_one({"dj_id": dj_profile["id"]})
     if not wallet:
@@ -1387,19 +1404,31 @@ async def get_dj_wallet(current_user: dict = Depends(get_current_user)):
     # Get pending earnings details
     pending_earnings = await db.dj_earnings.find({
         "dj_id": dj_profile["id"],
-        "status": "pending"
-    }).to_list(100)
+        "status": {"$in": ["pending", "available"]}
+    }).sort("created_at", -1).to_list(100)
     
-    # Enrich with booking info
+    # Enrich with booking info and add release countdown
     for earning in pending_earnings:
         booking = await db.bookings.find_one({"id": earning["booking_id"]})
         if booking:
             event = await db.events.find_one({"id": booking.get("event_id")})
             earning["event_title"] = event.get("title") if event else "N/A"
+        
+        # Calculate hours remaining before release
+        confirmed_at = earning.get("confirmed_at")
+        if confirmed_at and earning["status"] == "pending":
+            release_at = confirmed_at + timedelta(hours=24)
+            remaining = (release_at - datetime.utcnow()).total_seconds()
+            earning["hours_until_release"] = max(0, round(remaining / 3600, 1))
+            earning["release_at"] = release_at.isoformat()
+        elif earning["status"] == "pending" and not confirmed_at:
+            earning["hours_until_release"] = None
+            earning["waiting_for_confirmation"] = True
     
     return serialize_doc({
         "wallet": wallet,
-        "pending_earnings": pending_earnings
+        "pending_earnings": pending_earnings,
+        "min_withdrawal": 50.0
     })
 
 @api_router.get("/dj/earnings")
@@ -1434,32 +1463,56 @@ async def get_dj_earnings(
     
     return serialize_doc(earnings)
 
+class WithdrawalRequest(BaseModel):
+    amount: float
+    method: str = "bank"  # "bank" or "paypal"
+    bank_name: Optional[str] = None
+    iban: Optional[str] = None
+    paypal_email: Optional[str] = None
+
+MINIMUM_WITHDRAWAL = 50.0
+
 @api_router.post("/dj/withdrawal")
 async def request_dj_withdrawal(
-    amount: float,
-    bank_name: str,
-    iban: str,
+    data: WithdrawalRequest,
     current_user: dict = Depends(get_current_user)
 ):
-    """DJ requests withdrawal of available funds"""
+    """DJ requests withdrawal of available funds. Minimum 50€."""
     if current_user.get("user_type") != "dj":
-        raise HTTPException(status_code=403, detail="Only DJs can request withdrawals")
+        raise HTTPException(status_code=403, detail="Seuls les DJs peuvent demander un retrait")
+    
+    if data.amount < MINIMUM_WITHDRAWAL:
+        raise HTTPException(status_code=400, detail=f"Le montant minimum de retrait est de {MINIMUM_WITHDRAWAL}€")
+    
+    if data.method == "bank" and (not data.bank_name or not data.iban):
+        raise HTTPException(status_code=400, detail="Veuillez renseigner le nom de la banque et l'IBAN")
+    
+    if data.method == "paypal" and not data.paypal_email:
+        raise HTTPException(status_code=400, detail="Veuillez renseigner votre email PayPal")
     
     dj_profile = await db.dj_profiles.find_one({"user_id": current_user["id"]})
     if not dj_profile:
-        raise HTTPException(status_code=404, detail="DJ profile not found")
+        raise HTTPException(status_code=404, detail="Profil DJ introuvable")
     
     wallet = await db.dj_wallets.find_one({"dj_id": dj_profile["id"]})
-    if not wallet or wallet.get("available_balance", 0) < amount:
-        raise HTTPException(status_code=400, detail="Insufficient available balance. Pending funds cannot be withdrawn until prestation is confirmed.")
+    if not wallet or wallet.get("available_balance", 0) < data.amount:
+        raise HTTPException(status_code=400, detail="Solde disponible insuffisant. Les fonds en attente ne peuvent pas être retirés.")
+    
+    # Build bank details
+    bank_details = {}
+    if data.method == "bank":
+        bank_details = {"bank_name": data.bank_name, "iban": data.iban}
+    else:
+        bank_details = {"paypal_email": data.paypal_email}
     
     # Create withdrawal request
     withdrawal = {
         "id": str(uuid.uuid4()),
         "dj_id": dj_profile["id"],
-        "amount": amount,
+        "amount": data.amount,
+        "method": data.method,
         "status": "pending",
-        "bank_details": {"bank_name": bank_name, "iban": iban},
+        "bank_details": bank_details,
         "created_at": datetime.utcnow(),
         "processed_at": None
     }
@@ -1469,14 +1522,14 @@ async def request_dj_withdrawal(
     await db.dj_wallets.update_one(
         {"dj_id": dj_profile["id"]},
         {
-            "$inc": {"available_balance": -amount, "total_withdrawn": amount},
+            "$inc": {"available_balance": -data.amount, "total_withdrawn": data.amount},
             "$set": {"updated_at": datetime.utcnow()}
         }
     )
     
     return serialize_doc({
         "withdrawal": withdrawal,
-        "message": "Withdrawal request submitted. Will be processed within 3-5 business days."
+        "message": f"Demande de retrait de {data.amount}€ soumise. Traitement sous 3-5 jours ouvrés."
     })
 
 @api_router.get("/dj/withdrawals")

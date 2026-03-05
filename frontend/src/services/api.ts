@@ -88,8 +88,13 @@ export const paymentApi = {
 export const djWalletApi = {
   getWallet: () => api.get('/dj/wallet'),
   getEarnings: (status?: string) => api.get('/dj/earnings', { params: { status } }),
-  requestWithdrawal: (amount: number, bankName: string, iban: string) =>
-    api.post('/dj/withdrawal', null, { params: { amount, bank_name: bankName, iban } }),
+  requestWithdrawal: (amount: number, iban: string) =>
+    api.post('/dj/withdrawal', { 
+      amount, 
+      method: 'bank',
+      bank_name: 'Virement SEPA',
+      iban 
+    }),
   getWithdrawals: () => api.get('/dj/withdrawals'),
 };
 

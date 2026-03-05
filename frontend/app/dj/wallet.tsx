@@ -15,7 +15,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { djWalletApi } from '../../src/services/api';
 import { goBack } from '../../src/utils/navigation';
 import { Button } from '../../src/components/Button';
-import { Input } from '../../src/components/Input';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
@@ -27,7 +26,10 @@ interface WalletData {
     total_withdrawn: number;
   };
   pending_earnings: any[];
+  min_withdrawal: number;
 }
+
+const MINIMUM_WITHDRAWAL = 50;
 
 export default function DJWalletScreen() {
   const [loading, setLoading] = useState(true);
@@ -36,11 +38,6 @@ export default function DJWalletScreen() {
   const [activeTab, setActiveTab] = useState('wallet');
   const [earnings, setEarnings] = useState<any[]>([]);
   const [withdrawals, setWithdrawals] = useState<any[]>([]);
-  const [showWithdrawModal, setShowWithdrawModal] = useState(false);
-  const [withdrawAmount, setWithdrawAmount] = useState('');
-  const [bankName, setBankName] = useState('');
-  const [iban, setIban] = useState('');
-  const [withdrawLoading, setWithdrawLoading] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -69,35 +66,8 @@ export default function DJWalletScreen() {
     setRefreshing(false);
   };
 
-  const handleWithdraw = async () => {
-    const amount = parseFloat(withdrawAmount);
-    if (!amount || amount <= 0) {
-      Alert.alert('Erreur', 'Veuillez entrer un montant valide');
-      return;
-    }
-
-    if (!bankName || !iban) {
-      Alert.alert('Erreur', 'Veuillez remplir les informations bancaires');
-      return;
-    }
-
-    if (walletData && amount > walletData.wallet.available_balance) {
-      Alert.alert('Erreur', 'Solde disponible insuffisant. Les fonds en attente ne peuvent pas être retirés.');
-      return;
-    }
-
-    setWithdrawLoading(true);
-    try {
-      await djWalletApi.requestWithdrawal(amount, bankName, iban);
-      Alert.alert('Succès', 'Demande de retrait soumise avec succès');
-      setShowWithdrawModal(false);
-      setWithdrawAmount('');
-      await loadData();
-    } catch (error: any) {
-      Alert.alert('Erreur', error.response?.data?.detail || 'Échec du retrait');
-    } finally {
-      setWithdrawLoading(false);
-    }
+  const navigateToWithdrawal = () => {
+    router.push('/dj/withdrawal');
   };
 
   if (loading) {
@@ -163,12 +133,16 @@ export default function DJWalletScreen() {
               <Text style={styles.balanceValue}>
                 {walletData.wallet.available_balance.toFixed(2)}€
               </Text>
-              <Text style={styles.balanceNote}>Disponible pour retrait</Text>
+              <Text style={styles.balanceNote}>
+                {walletData.wallet.available_balance >= MINIMUM_WITHDRAWAL 
+                  ? 'Disponible pour retrait' 
+                  : `Minimum ${MINIMUM_WITHDRAWAL}€ requis pour retrait`}
+              </Text>
               
               <Button
                 title="Retirer des fonds"
-                onPress={() => setShowWithdrawModal(true)}
-                disabled={walletData.wallet.available_balance <= 0}
+                onPress={navigateToWithdrawal}
+                disabled={walletData.wallet.available_balance < MINIMUM_WITHDRAWAL}
                 style={styles.withdrawButton}
               />
             </View>
@@ -293,67 +267,6 @@ export default function DJWalletScreen() {
 
         <View style={styles.bottomPadding} />
       </ScrollView>
-
-      {/* Withdraw Modal */}
-      {showWithdrawModal && (
-        <View style={styles.modalOverlay}>
-          <View style={styles.modal}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Retirer des fonds</Text>
-              <TouchableOpacity onPress={() => setShowWithdrawModal(false)}>
-                <Ionicons name="close" size={24} color="#fff" />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.modalBalance}>
-              <Text style={styles.modalBalanceLabel}>Solde disponible</Text>
-              <Text style={styles.modalBalanceValue}>
-                {walletData?.wallet.available_balance.toFixed(2) || 0}€
-              </Text>
-            </View>
-
-            <Input
-              label="Montant à retirer (€)"
-              value={withdrawAmount}
-              onChangeText={setWithdrawAmount}
-              keyboardType="numeric"
-              placeholder="100.00"
-              leftIcon="cash"
-            />
-
-            <Input
-              label="Nom de la banque"
-              value={bankName}
-              onChangeText={setBankName}
-              placeholder="BNP Paribas"
-              leftIcon="business"
-            />
-
-            <Input
-              label="IBAN"
-              value={iban}
-              onChangeText={setIban}
-              placeholder="FR76 1234 5678 9012 3456 7890 123"
-              autoCapitalize="characters"
-              leftIcon="card"
-            />
-
-            <View style={styles.modalNote}>
-              <Ionicons name="information-circle" size={20} color="#F39C12" />
-              <Text style={styles.modalNoteText}>
-                Les retraits sont traités sous 3-5 jours ouvrés.
-              </Text>
-            </View>
-
-            <Button
-              title="Confirmer le retrait"
-              onPress={handleWithdraw}
-              loading={withdrawLoading}
-              disabled={!withdrawAmount || parseFloat(withdrawAmount) <= 0}
-            />
-          </View>
-        </View>
-      )}
     </SafeAreaView>
   );
 }
@@ -597,58 +510,5 @@ const styles = StyleSheet.create({
   },
   bottomPadding: {
     height: 40,
-  },
-  modalOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.8)',
-    justifyContent: 'flex-end',
-  },
-  modal: {
-    backgroundColor: '#1E1E1E',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 20,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#fff',
-  },
-  modalBalance: {
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  modalBalanceLabel: {
-    fontSize: 14,
-    color: '#636E72',
-    marginBottom: 8,
-  },
-  modalBalanceValue: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: '#00B894',
-  },
-  modalNote: {
-    flexDirection: 'row',
-    backgroundColor: '#2D3436',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 20,
-    gap: 12,
-  },
-  modalNoteText: {
-    flex: 1,
-    fontSize: 14,
-    color: '#B2BEC3',
   },
 });
