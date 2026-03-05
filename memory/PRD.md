@@ -27,7 +27,22 @@ Application mobile et web pour la réservation de DJs pour événements.
 - **Payments**: Stripe, PayPal Payouts
 - **Real-time**: WebSockets
 
-## Implemented Features (March 2025)
+## Implemented Features
+
+### ✅ Système de Réinitialisation de Mot de Passe (Mars 2025)
+- **Backend Endpoints**:
+  - `POST /api/auth/forgot-password` - Génère un token de reset (expire 1h)
+  - `POST /api/auth/reset-password/{token}` - Réinitialise le mot de passe
+- **Frontend Pages**:
+  - `/forgot-password` - Formulaire de demande de reset
+  - `/reset-password` - Formulaire de nouveau mot de passe
+- **Sécurité**:
+  - Token sécurisé avec expiration 1 heure
+  - Prévention réutilisation de token
+  - Message générique (anti-enumération email)
+  - Validation mot de passe minimum 6 caractères
+  - Indicateur de force du mot de passe
+- **MOCKED**: Envoi d'email (token retourné dans la réponse API pour tests)
 
 ### ✅ Page de Retrait Sécurisée avec PayPal
 - Choix méthode: Virement IBAN ou PayPal
@@ -51,7 +66,7 @@ Application mobile et web pour la réservation de DJs pour événements.
 - Orbes lumineux pulsants (cyan, magenta, vert)
 - Effets électriques flash
 - Compatible mobile et web
-- Présent sur: login, register, withdrawal
+- Présent sur: login, register, withdrawal, forgot-password, reset-password
 
 ### ✅ Système d'Avis et Notes
 - API POST /api/reviews - Créer un avis (1-5 étoiles)
@@ -77,6 +92,8 @@ Application mobile et web pour la réservation de DJs pour événements.
 - Navbar web pour desktop
 
 ## API Endpoints Clés
+- `POST /api/auth/forgot-password` - Demande reset mot de passe
+- `POST /api/auth/reset-password/{token}` - Réinitialiser mot de passe
 - `POST /api/dj/withdrawal` - Demande de retrait (IBAN ou PayPal)
 - `GET /api/dj/wallet` - Solde et gains
 - `GET /api/dj/withdrawals` - Historique retraits
@@ -85,30 +102,48 @@ Application mobile et web pour la réservation de DJs pour événements.
 - `WS /ws/{user_id}` - Connexion WebSocket
 
 ## Files Reference
+- `/app/frontend/app/(auth)/login.tsx` - Page de connexion avec lien "Mot de passe oublié"
+- `/app/frontend/app/(auth)/forgot-password.tsx` - Page demande reset
+- `/app/frontend/app/(auth)/reset-password.tsx` - Page nouveau mot de passe
 - `/app/frontend/app/dj/withdrawal.tsx` - Page de retrait
 - `/app/frontend/app/dj/wallet.tsx` - Page portefeuille
 - `/app/frontend/src/components/NeonBackground.tsx` - Animations néon
-- `/app/backend/server.py` - API backend
+- `/app/backend/server.py` - API backend (endpoints auth, reset password, etc.)
 - `/app/backend/services/paypal_service.py` - Service PayPal
 - `/app/frontend/src/services/api.ts` - Client API
 
-## Test Results (Iteration 2)
-- **Backend**: 100% (19/19 tests)
+## Test Results (Iteration 3)
+- **Backend**: 100% (11/11 tests passed)
 - **Frontend**: 100% fonctionnel
-- **Test file**: `/app/backend/tests/test_iteration2.py`
+- **Test file**: `/app/backend/tests/test_password_reset.py`
 
 ## Test Credentials
-- Email: dj-test@example.com
-- Password: test123456
-- Type: DJ
+- Email: reset-test@djbooking.com
+- Password: newpassword123
+- Type: DJ (ou organizer pour tests)
 
-## Configuration PayPal (Sandbox)
+## Configuration
+### PayPal (Sandbox)
 - Client ID: Configuré dans backend/.env
 - Secret: Configuré dans backend/.env
 - Mode: sandbox
 
+### Stripe (Live)
+- API Key: Configuré dans backend/.env
+- Publishable Key: Configuré dans backend/.env
+
 ## Backlog / Future Tasks
+
+### P1 - En attente (Frontend à implémenter)
+- **Frontend Système d'Avis DJ**: Créer le formulaire de notation et affichage des avis sur profil DJ
+- **Frontend Historique Retraits Temps Réel**: Connecter WebSocket pour mises à jour live des statuts
+
+### P2 - Futures tâches
 - Messagerie temps réel (WebSocket chat)
 - Notifications push
 - Panel admin pour gestion commissions
-- Historique des retraits avec statut temps réel
+- Envoi réel d'email pour password reset (supprimer le mock)
+
+### Refactoring suggéré
+- Décomposer `server.py` en modules séparés (auth.py, payments.py, reviews.py)
+- Ajouter encodeur JSON global pour ObjectId MongoDB
