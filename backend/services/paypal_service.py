@@ -63,7 +63,7 @@ class PayPalService:
         recipient_email: str,
         amount: float,
         currency: str = "EUR",
-        note: str = "DJ Booking Platform - Payout",
+        note: str = "MixLink Platform - Payout",
         sender_batch_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """
@@ -88,7 +88,7 @@ class PayPalService:
         payout_data = {
             "sender_batch_header": {
                 "sender_batch_id": sender_batch_id,
-                "email_subject": "Vous avez reçu un paiement de DJ Booking",
+                "email_subject": "Vous avez reçu un paiement de MixLink",
                 "email_message": note
             },
             "items": [

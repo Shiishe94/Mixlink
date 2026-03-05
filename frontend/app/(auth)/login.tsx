@@ -126,7 +126,7 @@ export default function LoginScreen() {
                   resizeMode="contain"
                 />
               </Animated.View>
-              <Text style={styles.title}>DJ Booking</Text>
+              <Text style={styles.title}>MixLink</Text>
               <Text style={styles.subtitle}>Trouvez le DJ parfait pour vos événements</Text>
             </View>
 

@@ -1,4 +1,4 @@
-# DJ Booking Platform - PRD
+# MixLink - PRD
 
 ## Statut : Phase P1-P2 Complétée (Mars 2025)
 

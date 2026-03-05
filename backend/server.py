@@ -62,7 +62,7 @@ DJ_COMMISSION_RATE = 0.075  # 7.5% from DJ
 ORGANIZER_COMMISSION_RATE = 0.075  # 7.5% from Organizer
 
 # Admin Configuration
-ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', 'admin@djbooking.com')
+ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', 'admin@mixlink.com')
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin123')
 
 # Stripe Configuration
@@ -78,7 +78,7 @@ PAYPAL_MODE = os.environ.get('PAYPAL_MODE', 'sandbox')
 from services.paypal_service import paypal_service
 
 # Create the main app
-app = FastAPI(title="DJ Booking API")
+app = FastAPI(title="MixLink API")
 api_router = APIRouter(prefix="/api")
 security = HTTPBearer()
 
@@ -1606,7 +1606,7 @@ async def request_dj_withdrawal(
                 recipient_email=data.paypal_email,
                 amount=data.amount,
                 currency="EUR",
-                note=f"DJ Booking - Retrait #{withdrawal_id[:8]}",
+                note=f"MixLink - Retrait #{withdrawal_id[:8]}",
                 sender_batch_id=f"DJ_{withdrawal_id[:12].upper()}"
             )
             paypal_batch_id = payout_result.get("batch_id")
@@ -1881,7 +1881,7 @@ async def get_event_types():
 
 @api_router.get("/")
 async def root():
-    return {"message": "DJ Booking API", "version": "1.0"}
+    return {"message": "MixLink API", "version": "1.0"}
 
 # ==================== ADMIN ROUTES ====================
 

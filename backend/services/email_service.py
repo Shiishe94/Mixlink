@@ -1,5 +1,5 @@
 """
-Email Service for DJ Booking Platform
+Email Service for MixLink Platform
 Currently using MOCK implementation - ready for SendGrid integration
 """
 
@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 # Configuration
 SENDGRID_API_KEY = os.environ.get('SENDGRID_API_KEY')
-SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'noreply@djbooking.com')
+SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'noreply@mixlink.com')
 EMAIL_MODE = os.environ.get('EMAIL_MODE', 'mock')  # 'mock' or 'sendgrid'
 
 
@@ -97,7 +97,7 @@ class EmailService:
     
     async def send_password_reset(self, to: str, reset_token: str, reset_url: str) -> dict:
         """Send password reset email"""
-        subject = "🔐 Réinitialisation de votre mot de passe - DJ Booking"
+        subject = "🔐 Réinitialisation de votre mot de passe - MixLink"
         
         html_content = f"""
         <!DOCTYPE html>
@@ -116,7 +116,7 @@ class EmailService:
         <body>
             <div class="container">
                 <div class="header">
-                    <div class="logo">DJ Booking</div>
+                    <div class="logo">MixLink</div>
                 </div>
                 
                 <h2>Réinitialisation de mot de passe</h2>
@@ -136,7 +136,7 @@ class EmailService:
                 <p style="word-break: break-all; color: #00CEC9;">{reset_url}</p>
                 
                 <div class="footer">
-                    <p>© 2025 DJ Booking Platform. Tous droits réservés.</p>
+                    <p>© 2025 MixLink Platform. Tous droits réservés.</p>
                 </div>
             </div>
         </body>
@@ -177,7 +177,7 @@ class EmailService:
         <body>
             <div class="container">
                 <div class="header">
-                    <div class="logo">DJ Booking</div>
+                    <div class="logo">MixLink</div>
                 </div>
                 
                 <h2>🎉 Votre réservation est confirmée !</h2>
@@ -208,7 +208,7 @@ class EmailService:
                 <p>Vous pouvez contacter le DJ via la messagerie de l'application.</p>
                 
                 <div class="footer">
-                    <p>© 2025 DJ Booking Platform. Tous droits réservés.</p>
+                    <p>© 2025 MixLink Platform. Tous droits réservés.</p>
                 </div>
             </div>
         </body>
@@ -264,7 +264,7 @@ class EmailService:
         <body>
             <div class="container">
                 <div class="header">
-                    <div class="logo">DJ Booking</div>
+                    <div class="logo">MixLink</div>
                 </div>
                 
                 <h2>{emoji} Mise à jour de votre retrait</h2>
@@ -282,7 +282,7 @@ class EmailService:
                 <p>Consultez votre historique de retraits dans l'application pour plus de détails.</p>
                 
                 <div class="footer">
-                    <p>© 2025 DJ Booking Platform. Tous droits réservés.</p>
+                    <p>© 2025 MixLink Platform. Tous droits réservés.</p>
                 </div>
             </div>
         </body>
@@ -319,7 +319,7 @@ class EmailService:
         <body>
             <div class="container">
                 <div class="header">
-                    <div class="logo">DJ Booking</div>
+                    <div class="logo">MixLink</div>
                 </div>
                 
                 <h2>🎵 Nouvelle demande de réservation !</h2>
@@ -335,7 +335,7 @@ class EmailService:
                 <p>Connectez-vous à l'application pour accepter ou refuser cette demande.</p>
                 
                 <div class="footer">
-                    <p>© 2025 DJ Booking Platform. Tous droits réservés.</p>
+                    <p>© 2025 MixLink Platform. Tous droits réservés.</p>
                 </div>
             </div>
         </body>

@@ -18,9 +18,9 @@ if BASE_URL.endswith('/'):
     BASE_URL = BASE_URL.rstrip('/')
 
 # Test credentials
-DJ_EMAIL = "reset-test@djbooking.com"
+DJ_EMAIL = "reset-test@mixlink.com"
 DJ_PASSWORD = "newpassword123"
-ORGANIZER_EMAIL = "test-organizer-p1p2@djbooking.com"
+ORGANIZER_EMAIL = "test-organizer-p1p2@mixlink.com"
 ORGANIZER_PASSWORD = "testpassword123"
 
 class TestAuthEndpoints:

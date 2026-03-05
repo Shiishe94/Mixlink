@@ -1,5 +1,5 @@
 """
-Push Notification Service for DJ Booking Platform
+Push Notification Service for MixLink Platform
 Using Expo Push Notifications
 """
 

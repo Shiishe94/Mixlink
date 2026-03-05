@@ -56,7 +56,7 @@ export const WebNavbar: React.FC = () => {
           onPress={() => router.push('/(tabs)')}
         >
           <Image source={{ uri: LOGO_URL }} style={styles.logoImage} resizeMode="contain" />
-          <Text style={styles.logoText}>DJ Booking</Text>
+          <Text style={styles.logoText}>MixLink</Text>
         </TouchableOpacity>
 
         {/* Nav Links */}
@@ -124,7 +124,7 @@ export const WebNavbar: React.FC = () => {
                 </TouchableOpacity>
               )}
 
-              {user?.email === 'admin@djbooking.com' && (
+              {user?.email === 'admin@mixlink.com' && (
                 <TouchableOpacity
                   style={styles.dropdownItem}
                   onPress={() => {

@@ -11,7 +11,7 @@ from datetime import datetime
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://neon-dj-connect.preview.emergentagent.com')
 
 # Test user credentials - uses existing test user from context
-TEST_USER_EMAIL = "reset-test@djbooking.com"
+TEST_USER_EMAIL = "reset-test@mixlink.com"
 TEST_USER_PASSWORD = "newpassword123"
 
 
