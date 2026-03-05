@@ -88,13 +88,14 @@ export const paymentApi = {
 export const djWalletApi = {
   getWallet: () => api.get('/dj/wallet'),
   getEarnings: (status?: string) => api.get('/dj/earnings', { params: { status } }),
-  requestWithdrawal: (amount: number, iban: string) =>
-    api.post('/dj/withdrawal', { 
+  requestWithdrawal: (amount: number, iban: string, paypalEmail?: string) => {
+    const method = paypalEmail ? 'paypal' : 'bank';
+    return api.post('/dj/withdrawal', { 
       amount, 
-      method: 'bank',
-      bank_name: 'Virement SEPA',
-      iban 
-    }),
+      method,
+      ...(method === 'bank' ? { bank_name: 'Virement SEPA', iban } : { paypal_email: paypalEmail })
+    });
+  },
   getWithdrawals: () => api.get('/dj/withdrawals'),
 };
 
@@ -108,10 +109,11 @@ export const messageApi = {
 
 // Review API
 export const reviewApi = {
-  create: (data: { dj_id: string; booking_id: string; rating: number; comment: string }) =>
+  create: (data: { dj_id: string; booking_id: string; rating: number; comment?: string }) =>
     api.post('/reviews', data),
   getByDJ: (djId: string, limit?: number, skip?: number) =>
-    api.get(`/reviews/${djId}`, { params: { limit, skip } }),
+    api.get(`/reviews/dj/${djId}`, { params: { limit, skip } }),
+  getPendingReviews: () => api.get('/reviews/pending'),
 };
 
 // Match API

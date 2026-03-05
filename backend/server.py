@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, UploadFile, File, Request
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, UploadFile, File, Request, WebSocket, WebSocketDisconnect
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -9,12 +9,14 @@ from pathlib import Path
 from pydantic import BaseModel, Field, EmailStr
 from typing import List, Optional, Dict, Any
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import jwt
 import bcrypt
 import base64
 from bson import ObjectId
 from emergentintegrations.payments.stripe.checkout import StripeCheckout, CheckoutSessionResponse, CheckoutStatusResponse, CheckoutSessionRequest
+import asyncio
+import json
 
 ROOT_DIR = Path(__file__).parent
 
@@ -70,6 +72,10 @@ STRIPE_PUBLISHABLE_KEY = os.environ.get('STRIPE_PUBLISHABLE_KEY', '')
 # PayPal Configuration
 PAYPAL_CLIENT_ID = os.environ.get('PAYPAL_CLIENT_ID', '')
 PAYPAL_CLIENT_SECRET = os.environ.get('PAYPAL_CLIENT_SECRET', '')
+PAYPAL_MODE = os.environ.get('PAYPAL_MODE', 'sandbox')
+
+# Import PayPal service
+from services.paypal_service import paypal_service
 
 # Create the main app
 app = FastAPI(title="DJ Booking API")
@@ -1484,8 +1490,8 @@ async def request_dj_withdrawal(
     if data.amount < MINIMUM_WITHDRAWAL:
         raise HTTPException(status_code=400, detail=f"Le montant minimum de retrait est de {MINIMUM_WITHDRAWAL}€")
     
-    if data.method == "bank" and (not data.bank_name or not data.iban):
-        raise HTTPException(status_code=400, detail="Veuillez renseigner le nom de la banque et l'IBAN")
+    if data.method == "bank" and not data.iban:
+        raise HTTPException(status_code=400, detail="Veuillez renseigner votre IBAN")
     
     if data.method == "paypal" and not data.paypal_email:
         raise HTTPException(status_code=400, detail="Veuillez renseigner votre email PayPal")
@@ -1498,23 +1504,49 @@ async def request_dj_withdrawal(
     if not wallet or wallet.get("available_balance", 0) < data.amount:
         raise HTTPException(status_code=400, detail="Solde disponible insuffisant. Les fonds en attente ne peuvent pas être retirés.")
     
-    # Build bank details
-    bank_details = {}
+    withdrawal_id = str(uuid.uuid4())
+    transaction_id = None
+    paypal_batch_id = None
+    status_withdrawal = "pending"
+    
+    # Process PayPal payout immediately if method is paypal
+    if data.method == "paypal" and data.paypal_email:
+        try:
+            payout_result = await paypal_service.create_payout(
+                recipient_email=data.paypal_email,
+                amount=data.amount,
+                currency="EUR",
+                note=f"DJ Booking - Retrait #{withdrawal_id[:8]}",
+                sender_batch_id=f"DJ_{withdrawal_id[:12].upper()}"
+            )
+            paypal_batch_id = payout_result.get("batch_id")
+            transaction_id = paypal_batch_id
+            status_withdrawal = "processing"  # PayPal is processing
+            logger.info(f"PayPal payout initiated: {paypal_batch_id}")
+        except Exception as e:
+            logger.error(f"PayPal payout failed: {str(e)}")
+            raise HTTPException(status_code=400, detail=f"Erreur PayPal: {str(e)}")
+    
+    # Build payout details
+    payout_details = {}
     if data.method == "bank":
-        bank_details = {"bank_name": data.bank_name, "iban": data.iban}
+        payout_details = {"bank_name": data.bank_name or "Virement SEPA", "iban": data.iban}
     else:
-        bank_details = {"paypal_email": data.paypal_email}
+        payout_details = {"paypal_email": data.paypal_email, "paypal_batch_id": paypal_batch_id}
     
     # Create withdrawal request
     withdrawal = {
-        "id": str(uuid.uuid4()),
+        "id": withdrawal_id,
         "dj_id": dj_profile["id"],
+        "user_id": current_user["id"],
         "amount": data.amount,
         "method": data.method,
-        "status": "pending",
-        "bank_details": bank_details,
-        "created_at": datetime.utcnow(),
-        "processed_at": None
+        "status": status_withdrawal,
+        "payout_details": payout_details,
+        "transaction_id": transaction_id,
+        "created_at": datetime.now(timezone.utc),
+        "processed_at": datetime.now(timezone.utc) if data.method == "paypal" else None,
+        "completed_at": None
     }
     await db.dj_withdrawals.insert_one(withdrawal)
     
@@ -1523,13 +1555,22 @@ async def request_dj_withdrawal(
         {"dj_id": dj_profile["id"]},
         {
             "$inc": {"available_balance": -data.amount, "total_withdrawn": data.amount},
-            "$set": {"updated_at": datetime.utcnow()}
+            "$set": {"updated_at": datetime.now(timezone.utc)}
         }
     )
     
+    # Broadcast withdrawal update via WebSocket
+    await broadcast_withdrawal_update(current_user["id"], serialize_doc(withdrawal))
+    
+    message = f"Demande de retrait de {data.amount}€ soumise."
+    if data.method == "paypal":
+        message += " Paiement PayPal en cours de traitement."
+    else:
+        message += " Virement sous 3-5 jours ouvrés."
+    
     return serialize_doc({
         "withdrawal": withdrawal,
-        "message": f"Demande de retrait de {data.amount}€ soumise. Traitement sous 3-5 jours ouvrés."
+        "message": message
     })
 
 @api_router.get("/dj/withdrawals")
@@ -1973,6 +2014,201 @@ async def get_withdrawals(
         "withdrawals": withdrawals,
         "total": total
     })
+
+# ==================== WEBSOCKET MANAGEMENT ====================
+
+class ConnectionManager:
+    """WebSocket connection manager for real-time updates"""
+    
+    def __init__(self):
+        # Map user_id to list of websocket connections
+        self.active_connections: Dict[str, List[WebSocket]] = {}
+    
+    async def connect(self, websocket: WebSocket, user_id: str):
+        await websocket.accept()
+        if user_id not in self.active_connections:
+            self.active_connections[user_id] = []
+        self.active_connections[user_id].append(websocket)
+        logger.info(f"WebSocket connected for user {user_id}")
+    
+    def disconnect(self, websocket: WebSocket, user_id: str):
+        if user_id in self.active_connections:
+            if websocket in self.active_connections[user_id]:
+                self.active_connections[user_id].remove(websocket)
+            if not self.active_connections[user_id]:
+                del self.active_connections[user_id]
+        logger.info(f"WebSocket disconnected for user {user_id}")
+    
+    async def send_personal_message(self, message: dict, user_id: str):
+        if user_id in self.active_connections:
+            for connection in self.active_connections[user_id]:
+                try:
+                    await connection.send_json(message)
+                except Exception as e:
+                    logger.error(f"Error sending message to {user_id}: {e}")
+    
+    async def broadcast(self, message: dict):
+        for user_id, connections in self.active_connections.items():
+            for connection in connections:
+                try:
+                    await connection.send_json(message)
+                except Exception as e:
+                    logger.error(f"Error broadcasting to {user_id}: {e}")
+
+ws_manager = ConnectionManager()
+
+async def broadcast_withdrawal_update(user_id: str, withdrawal_data: dict):
+    """Broadcast withdrawal status update to the specific user"""
+    await ws_manager.send_personal_message({
+        "type": "withdrawal_update",
+        "data": withdrawal_data
+    }, user_id)
+
+@app.websocket("/ws/{user_id}")
+async def websocket_endpoint(websocket: WebSocket, user_id: str):
+    await ws_manager.connect(websocket, user_id)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            # Handle incoming messages if needed
+            try:
+                message = json.loads(data)
+                if message.get("type") == "ping":
+                    await websocket.send_json({"type": "pong"})
+            except:
+                pass
+    except WebSocketDisconnect:
+        ws_manager.disconnect(websocket, user_id)
+
+# ==================== REVIEW SYSTEM ====================
+
+class ReviewCreate(BaseModel):
+    dj_id: str
+    booking_id: str
+    rating: int = Field(..., ge=1, le=5)
+    comment: Optional[str] = None
+
+@api_router.post("/reviews")
+async def create_review(
+    data: ReviewCreate,
+    current_user: dict = Depends(get_current_user)
+):
+    """Create a review for a DJ after completed booking"""
+    if current_user.get("user_type") != "organizer":
+        raise HTTPException(status_code=403, detail="Seuls les organisateurs peuvent laisser un avis")
+    
+    # Verify booking exists and is completed
+    booking = await db.bookings.find_one({
+        "id": data.booking_id,
+        "organizer_id": current_user["id"],
+        "dj_id": data.dj_id,
+        "status": "completed"
+    })
+    
+    if not booking:
+        raise HTTPException(
+            status_code=400, 
+            detail="Réservation introuvable ou non terminée. Vous ne pouvez laisser un avis qu'après une prestation complétée."
+        )
+    
+    # Check if review already exists
+    existing_review = await db.reviews.find_one({
+        "booking_id": data.booking_id,
+        "organizer_id": current_user["id"]
+    })
+    
+    if existing_review:
+        raise HTTPException(status_code=400, detail="Vous avez déjà laissé un avis pour cette réservation")
+    
+    # Create review
+    review = {
+        "id": str(uuid.uuid4()),
+        "dj_id": data.dj_id,
+        "organizer_id": current_user["id"],
+        "booking_id": data.booking_id,
+        "rating": data.rating,
+        "comment": data.comment,
+        "created_at": datetime.now(timezone.utc)
+    }
+    await db.reviews.insert_one(review)
+    
+    # Update DJ average rating
+    all_reviews = await db.reviews.find({"dj_id": data.dj_id}).to_list(1000)
+    total_rating = sum(r["rating"] for r in all_reviews)
+    avg_rating = total_rating / len(all_reviews) if all_reviews else 0
+    
+    await db.dj_profiles.update_one(
+        {"id": data.dj_id},
+        {
+            "$set": {
+                "average_rating": round(avg_rating, 1),
+                "total_reviews": len(all_reviews)
+            }
+        }
+    )
+    
+    # Get organizer name for response
+    review["organizer_name"] = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}"
+    
+    return serialize_doc({
+        "review": review,
+        "message": "Merci pour votre avis !"
+    })
+
+@api_router.get("/reviews/dj/{dj_id}")
+async def get_dj_reviews(dj_id: str, limit: int = 20, skip: int = 0):
+    """Get reviews for a specific DJ"""
+    reviews = await db.reviews.find({"dj_id": dj_id}).sort("created_at", -1).skip(skip).limit(limit).to_list(limit)
+    
+    # Add organizer names to reviews
+    for review in reviews:
+        organizer = await db.users.find_one({"id": review.get("organizer_id")})
+        if organizer:
+            review["organizer_name"] = f"{organizer.get('first_name', '')} {organizer.get('last_name', '')}"
+            review["organizer_image"] = organizer.get("profile_image")
+    
+    total = await db.reviews.count_documents({"dj_id": dj_id})
+    
+    # Get DJ stats
+    dj_profile = await db.dj_profiles.find_one({"id": dj_id})
+    
+    return serialize_doc({
+        "reviews": reviews,
+        "total": total,
+        "average_rating": dj_profile.get("average_rating", 0) if dj_profile else 0,
+        "total_reviews": dj_profile.get("total_reviews", 0) if dj_profile else 0
+    })
+
+@api_router.get("/reviews/pending")
+async def get_pending_reviews(current_user: dict = Depends(get_current_user)):
+    """Get bookings that need reviews from the organizer"""
+    if current_user.get("user_type") != "organizer":
+        raise HTTPException(status_code=403, detail="Only organizers can access pending reviews")
+    
+    # Get completed bookings without reviews
+    completed_bookings = await db.bookings.find({
+        "organizer_id": current_user["id"],
+        "status": "completed"
+    }).to_list(100)
+    
+    pending_reviews = []
+    for booking in completed_bookings:
+        # Check if review exists
+        review = await db.reviews.find_one({
+            "booking_id": booking["id"],
+            "organizer_id": current_user["id"]
+        })
+        
+        if not review:
+            # Get DJ info
+            dj_profile = await db.dj_profiles.find_one({"id": booking.get("dj_id")})
+            if dj_profile:
+                pending_reviews.append({
+                    "booking": serialize_doc(booking),
+                    "dj": serialize_doc(dj_profile)
+                })
+    
+    return serialize_doc(pending_reviews)
 
 # Include the router
 app.include_router(api_router)
