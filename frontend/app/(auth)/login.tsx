@@ -169,6 +169,7 @@ export default function LoginScreen() {
                 onPress={handleLogin}
                 disabled={loading}
                 activeOpacity={0.8}
+                data-testid="login-button"
               >
                 <LinearGradient
                   colors={[NEON_COLORS.cyan, NEON_COLORS.magenta]}

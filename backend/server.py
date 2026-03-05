@@ -1695,7 +1695,12 @@ async def send_message(
     message_dict["created_at"] = datetime.utcnow()
     
     await db.messages.insert_one(message_dict)
-    return serialize_doc(message_dict)
+    
+    # Broadcast the message to the receiver in real-time
+    message_for_broadcast = serialize_doc(message_dict)
+    await broadcast_new_message(message_data.receiver_id, message_for_broadcast)
+    
+    return message_for_broadcast
 
 @api_router.get("/messages/conversations")
 async def get_conversations(current_user: dict = Depends(get_current_user)):
@@ -2151,8 +2156,15 @@ async def broadcast_withdrawal_update(user_id: str, withdrawal_data: dict):
     """Broadcast withdrawal status update to the specific user"""
     await ws_manager.send_personal_message({
         "type": "withdrawal_update",
-        "data": withdrawal_data
+        "withdrawal": withdrawal_data
     }, user_id)
+
+async def broadcast_new_message(receiver_id: str, message_data: dict):
+    """Broadcast new message to the receiver in real-time"""
+    await ws_manager.send_personal_message({
+        "type": "new_message",
+        "message": message_data
+    }, receiver_id)
 
 @app.websocket("/ws/{user_id}")
 async def websocket_endpoint(websocket: WebSocket, user_id: str):

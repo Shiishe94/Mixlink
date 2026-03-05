@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -20,6 +20,7 @@ import { useAuthStore } from '../../src/store/authStore';
 import { format, isToday, isYesterday } from 'date-fns';
 import { goBack } from '../../src/utils/navigation';
 import { fr } from 'date-fns/locale';
+import { NEON_COLORS } from '../../src/components/NeonBackground';
 
 export default function ChatScreen() {
   const { partnerId } = useLocalSearchParams<{ partnerId: string }>();
@@ -29,14 +30,88 @@ export default function ChatScreen() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [partnerInfo, setPartnerInfo] = useState<any>(null);
+  const [wsConnected, setWsConnected] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
+  const wsRef = useRef<WebSocket | null>(null);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Connect to WebSocket for real-time messages
+  const connectWebSocket = useCallback(() => {
+    if (!user?.id) return;
+
+    const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+    const wsUrl = API_URL.replace('https://', 'wss://').replace('http://', 'ws://');
+    const fullWsUrl = `${wsUrl}/ws/${user.id}`;
+
+    console.log('Connecting to WebSocket:', fullWsUrl);
+
+    try {
+      wsRef.current = new WebSocket(fullWsUrl);
+
+      wsRef.current.onopen = () => {
+        console.log('Chat WebSocket connected');
+        setWsConnected(true);
+      };
+
+      wsRef.current.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          console.log('Chat WebSocket message:', data);
+
+          if (data.type === 'new_message' && data.message) {
+            // Only add if the message is from/to our conversation partner
+            if (data.message.sender_id === partnerId || data.message.receiver_id === partnerId) {
+              setMessages((prev) => {
+                // Avoid duplicates
+                if (prev.some((m) => m.id === data.message.id)) return prev;
+                return [...prev, data.message];
+              });
+              // Scroll to bottom
+              setTimeout(() => {
+                scrollViewRef.current?.scrollToEnd({ animated: true });
+              }, 100);
+            }
+          }
+        } catch (e) {
+          console.error('Error parsing WebSocket message:', e);
+        }
+      };
+
+      wsRef.current.onerror = (error) => {
+        console.error('Chat WebSocket error:', error);
+        setWsConnected(false);
+      };
+
+      wsRef.current.onclose = () => {
+        console.log('Chat WebSocket disconnected');
+        setWsConnected(false);
+        // Attempt to reconnect after 5 seconds
+        reconnectTimeoutRef.current = setTimeout(() => {
+          connectWebSocket();
+        }, 5000);
+      };
+    } catch (error) {
+      console.error('Error creating WebSocket:', error);
+    }
+  }, [user?.id, partnerId]);
 
   useEffect(() => {
     loadMessages();
-    // Poll for new messages every 5 seconds
-    const interval = setInterval(loadMessages, 5000);
-    return () => clearInterval(interval);
-  }, [partnerId]);
+    connectWebSocket();
+
+    // Fallback: Poll every 10 seconds in case WebSocket fails
+    const interval = setInterval(loadMessages, 10000);
+    
+    return () => {
+      clearInterval(interval);
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
+    };
+  }, [partnerId, connectWebSocket]);
 
   const loadMessages = async () => {
     try {
@@ -155,12 +230,21 @@ export default function ChatScreen() {
               ) : (
                 <Ionicons name="person" size={20} color="#636E72" />
               )}
+              {/* Online indicator */}
+              <View style={[styles.onlineIndicator, wsConnected && styles.onlineIndicatorActive]} />
             </View>
-            <Text style={styles.headerName} numberOfLines={1}>
-              {partnerInfo?.name || 'Conversation'}
-            </Text>
+            <View style={styles.headerTextContainer}>
+              <Text style={styles.headerName} numberOfLines={1}>
+                {partnerInfo?.name || 'Conversation'}
+              </Text>
+              <Text style={styles.headerStatus}>
+                {wsConnected ? 'En direct' : 'Hors ligne'}
+              </Text>
+            </View>
           </View>
-          <View style={styles.headerRight} />
+          <View style={styles.headerRight}>
+            <View style={[styles.wsStatusDot, wsConnected && styles.wsStatusDotConnected]} />
+          </View>
         </View>
 
         {/* Messages */}
@@ -253,19 +337,52 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: 12,
     overflow: 'hidden',
+    position: 'relative',
   },
   headerAvatarImage: {
     width: '100%',
     height: '100%',
   },
+  onlineIndicator: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#636E72',
+    borderWidth: 2,
+    borderColor: '#0c0c0c',
+  },
+  onlineIndicatorActive: {
+    backgroundColor: '#00B894',
+  },
+  headerTextContainer: {
+    flex: 1,
+  },
   headerName: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
     color: '#fff',
-    flex: 1,
+  },
+  headerStatus: {
+    fontSize: 12,
+    color: '#636E72',
+    marginTop: 2,
   },
   headerRight: {
     width: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  wsStatusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#636E72',
+  },
+  wsStatusDotConnected: {
+    backgroundColor: '#00B894',
   },
   messagesContainer: {
     flex: 1,

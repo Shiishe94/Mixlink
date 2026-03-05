@@ -233,7 +233,16 @@ export default function DJWalletScreen() {
 
         {activeTab === 'withdrawals' && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Historique des retraits</Text>
+            <View style={styles.withdrawalsSectionHeader}>
+              <Text style={styles.sectionTitle}>Historique des retraits</Text>
+              <TouchableOpacity
+                style={styles.realTimeButton}
+                onPress={() => router.push('/dj/withdrawal-history')}
+              >
+                <Ionicons name="pulse" size={16} color="#00CEC9" />
+                <Text style={styles.realTimeButtonText}>Temps réel</Text>
+              </TouchableOpacity>
+            </View>
             {withdrawals.length === 0 ? (
               <View style={styles.emptyState}>
                 <Ionicons name="wallet-outline" size={60} color="#636E72" />
@@ -507,6 +516,28 @@ const styles = StyleSheet.create({
   withdrawalDate: {
     fontSize: 12,
     color: '#636E72',
+  },
+  withdrawalsSectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  realTimeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 206, 201, 0.15)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 206, 201, 0.3)',
+  },
+  realTimeButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#00CEC9',
   },
   bottomPadding: {
     height: 40,
