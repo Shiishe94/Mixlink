@@ -1,207 +1,194 @@
-<analysis>
-<original_problem_statement>
+<analysis>original_problem_statement:
 The user wants to build a mobile and web application for booking DJs for events.
 
-**Product Requirements:**
--   **User Roles**: DJs, Event Organizers, and an Admin.
--   **DJ Profiles**: Include details like music style, experience, performance videos, and social media links (including TikTok).
--   **Event & DJ Discovery**: Search and filter for DJs and events.
--   **Booking System**: A complete flow for organizers to book DJs, including a dedicated checkout page.
--   **Payment System**:
-    -   Organizers pay for bookings via Stripe.
-    -   The platform takes a 15% commission on each transaction.
-    -   DJ earnings are held in a pending balance for 24 hours after the organizer confirms the service is complete.
-    -   After 24 hours, funds become available.
-    -   DJs can request a withdrawal of their available balance (minimum 50€) to their IBAN or PayPal.
--   **Messaging**: A feature for DJs and Organizers to communicate.
--   **UI/UX**:
-    -   A Neon Style theme with a dark background and neon colors.
-    -   Custom popups for errors and confirmations.
-    -   A responsive web version with a classic desktop layout (top navbar, centered content).
--   **Admin Dashboard**: An interface for the admin to view transactions and commissions.
-</original_problem_statement>
+**Initial Product Requirements:**
+*   **User Roles**: DJs, Event Organizers, and an Admin.
+*   **DJ Profiles**: Include details like music style, experience, performance videos, and social media links (including TikTok).
+*   **Event & DJ Discovery**: Search and filter for DJs and events.
+*   **Booking System**: A complete flow for organizers to book DJs.
+*   **Payment System**: Stripe integration for bookings, 15% platform commission, and a withdrawal system for DJs (IBAN/PayPal, 50€ min, 24h pending period).
+*   **UI/UX**: A Neon Style theme with a dark background and animated neon colors.
+
+**Recently Added Requirements:**
+1.  **PayPal Payouts Integration (High Priority)**: Add PayPal as a withdrawal method alongside IBAN, using provided API keys.
+2.  **Electric Neon Animations (High Priority)**: Implement dynamic, electric-style moving neon lines on all application pages.
+3.  **Real-Time Withdrawal History**: Create a withdrawal history page with real-time status updates (pending, completed, rejected) using WebSockets.
+4.  **DJ Review and Rating System**: Allow organizers to leave a 1-5 star rating and a comment for a DJ after a completed booking.
+5.  **Authentication System Revamp**:
+    *   Centralize the login system onto a single page for all user roles (Admin, Organizer, DJ).
+    *   Remove separate admin login forms from profile pages.
+    *   Implement automatic role-based redirection after login.
+    *   Add a Forgot Password? feature with a secure email-based token reset flow.
 
 **User's preferred language**: French. The next agent MUST respond in French.
 
 **what currently exists?**
-A full-stack application using Expo (React Native) for the frontend and FastAPI with MongoDB for the backend.
--   **Backend**: Contains models and API endpoints for user auth, DJ profiles, events, bookings, and a real Stripe payment integration. The 15% commission logic is in place. Endpoints for the DJ wallet exist. The backend has been updated with live Stripe keys.
--   **Frontend**: A multi-screen application that is responsive and works on both mobile and web.
-    -   **Mobile view**: Uses a standard tab-based navigation.
-    -   **Web view**: Displays a classic top navigation bar, hides the mobile tab bar, and centers content appropriately for a desktop experience.
-    -   Features include authentication, DJ browsing, a full booking-to-checkout flow, and a DJ profile page.
-    -   A Neon Style UI is implemented across the app, including custom  popups for errors/confirmations and a custom modal for logout.
+A full-stack application with a React Native/Expo frontend and a FastAPI/MongoDB backend.
+-   **Backend**: A monolithic  contains most of the logic.
+    -   It has endpoints for user auth, DJ profiles, events, bookings, and Stripe payments.
+    -   **PayPal integration is complete**, with a new  and updated withdrawal logic.
+    -   **Review system endpoints** () and models are implemented.
+    -   A **WebSocket endpoint** () has been added for real-time updates.
+    -   Endpoints for the **Forgot Password** flow (, ) have been added but are not fully implemented.
+-   **Frontend**: A responsive app for web and mobile.
+    -   The **animated neon background** has been implemented and is visible on login and other pages.
+    -   The **DJ withdrawal page is complete**, supporting both IBAN and PayPal, with dynamic form fields, security warnings, and validation.
+    -   The DJ Wallet screen has been updated to link to the new withdrawal page.
+    -   A bug related to React Hooks in  has been fixed.
 
 **Last working item**:
--   **Last item agent was working**: Implementing the DJ withdrawal system. The user specified that funds should be held for 24 hours after an event is marked complete and that DJs can withdraw available funds (minimum 50€) to an IBAN. The agent was in the process of modifying the backend to support this.
-    -   **Agent's plan was**:
-        1.  Create a cron job () to automatically move funds from pending to available after 24 hours.
-        2.  Update the booking completion endpoint () to save a  timestamp instead of immediately releasing funds.
-        3.  Update the withdrawal endpoint () to enforce the 50€ minimum and handle payout details (IBAN/PayPal).
+-   **Last item agent was working**: The agent started implementing the user's request to revamp the authentication system. Specifically, it began by adding the backend endpoints for the Forgot Password functionality.
 -   **Status**: IN PROGRESS
 -   **Agent Testing Done**: N
--   **Which testing method agent to use?**: backend testing agent. After implementation, the agent must test the entire withdrawal flow: 1. Complete a booking. 2. Verify funds are pending. 3. (Simulate 24h passing). 4. Verify funds become available. 5. Attempt a withdrawal below 50€. 6. Attempt a withdrawal above 50€.
+-   **Which testing method agent to use?**: both. The backend needs testing via  or a testing agent to verify the email sending and token validation logic. The frontend needs testing with the screenshot tool or frontend testing agent to verify the new UI flow for password reset.
 -   **User Testing Done**: N
 
 **All Pending/In progress Issue list**:
--   **Issue 1**: The  error has occurred multiple times and been fixed on a case-by-case basis by adding the  helper. There is a high risk of it recurring on any new or unmodified endpoints that return MongoDB documents.
-    -   **Next debug checklist**: If a 500 error occurs on a GET request, check the backend logs (     10.219.29.165:55972 - "GET /api/dj/profile/me HTTP/1.1" 200 OK
-INFO:     10.219.1.172:33800 - "GET /api/dj/wallet HTTP/1.1" 200 OK
-INFO:     10.219.1.172:33800 - "GET /api/dj/earnings HTTP/1.1" 200 OK
-INFO:     10.219.29.165:50582 - "GET /api/dj/withdrawals HTTP/1.1" 200 OK
-INFO:     10.219.1.172:45558 - "GET /api/auth/me HTTP/1.1" 200 OK
-INFO:     10.219.1.172:45558 - "GET /api/bookings/my HTTP/1.1" 200 OK
-INFO:     10.219.29.165:35512 - "GET /api/config/event-types HTTP/1.1" 200 OK
-INFO:     10.219.1.172:45560 - "GET /api/config/music-styles HTTP/1.1" 200 OK
-INFO:     10.219.1.172:45560 - "GET /api/dj/profile/me HTTP/1.1" 200 OK
-INFO:     10.219.29.165:54214 - "POST /api/auth/login HTTP/1.1" 200 OK
-INFO:     10.219.1.172:37794 - "GET /api/dj/profiles?limit=5 HTTP/1.1" 200 OK
-INFO:     10.219.1.172:37794 - "GET /api/events/my HTTP/1.1" 200 OK
-INFO:     10.219.29.165:54214 - "GET /api/bookings/my HTTP/1.1" 200 OK
-INFO:     10.219.1.172:47054 - "GET /api/bookings/my HTTP/1.1" 200 OK
-INFO:     10.219.29.165:53186 - "GET /api/config/music-styles HTTP/1.1" 200 OK
-INFO:     10.219.29.165:53198 - "GET /api/config/event-types HTTP/1.1" 200 OK
-INFO:     10.219.1.172:37836 - "GET /api/auth/me HTTP/1.1" 200 OK
-INFO:     10.219.29.165:49838 - "GET /api/dj/profiles?limit=5 HTTP/1.1" 200 OK
-INFO:     10.219.29.165:49838 - "GET /api/events/my HTTP/1.1" 200 OK
-INFO:     10.219.29.165:49838 - "GET /api/bookings/my HTTP/1.1" 200 OK
-INFO:     10.219.29.165:48840 - "GET /api/config/event-types HTTP/1.1" 200 OK
-INFO:     10.219.1.172:54154 - "GET /api/config/music-styles HTTP/1.1" 200 OK) for the  error. If found, identify the responsible endpoint in  and wrap its return value with the  helper.
-    -   **Why fix this issue and what will be achieved with the fix?**: Ensures API stability and prevents app crashes.
-    -   **Status**: RESOLVED (but with a high risk of recurrence)
-    -   **Is recurring issue?**: Y
-    -   **Should Test frontend/backend/both after fix?**: backend
-    -   **Blocked on other issue**: None
-
-**In progress Task List**:
--   **Task 1**: Complete the DJ Withdrawal Feature (P0)
-    -   **Where to resume**: The agent had started modifying the backend. The next step is to finalize the changes in .
-        1.  Finish modifying the  endpoint to add the  timestamp.
-        2.  Implement the scheduled task/cron job logic to release funds after 24 hours.
-        3.  Update the  endpoint logic to check for the 50€ minimum.
-        4.  Update the DJ wallet screen () to allow DJs to input their IBAN/PayPal and initiate a withdrawal.
-    -   **What will be achieved with this?**: Fulfills a core requirement of the payment flow, allowing DJs to get paid.
+-   **Issue 1**: Complete the Authentication System Revamp (P0)
+    -   **Description**: The user requested a centralized login, role-based redirects, and a Forgot Password feature. The agent only started the backend part of the password reset.
+    -   **Next debug checklist**:
+        1.  Complete the implementation of the  and  endpoints in . This includes generating a secure token, sending a reset email (a mock email sending function will suffice for now), and updating the user's password.
+        2.  Remove any admin-specific login forms from the DJ/Organizer profile pages in the frontend.
+        3.  Update the main login page () to include a Forgot Password? link.
+        4.  Create a new page for the user to enter their email to request a reset link.
+        5.  Create a new page () for the user to set a new password.
+        6.  Implement the logic in the login flow to automatically redirect users to their respective dashboards based on their role after a successful login.
+    -   **Why fix this issue and what will be achieved with the fix?**: This is a direct user request to improve security and user experience by centralizing authentication.
     -   **Status**: IN PROGRESS
     -   **Should Test frontend/backend/both after fix?**: both
-    -   **Blocked on something**: No.
+
+**In progress Task List**:
+-   **Task 1**: Implement Frontend for DJ Review System (P1)
+    -   **Where to resume**: The backend endpoints (, ) are already created. The next step is to build the frontend components.
+    -   **What will be achieved with this?**: Fulfills the user's requirement for a DJ rating system, which is crucial for building trust on the platform.
+    -   **Steps**:
+        1.  Create a form/modal that allows an organizer to submit a star rating and comment after a booking is completed.
+        2.  Create a component to display the average rating and a list of individual reviews on the DJ's public profile page ().
+    -   **Status**: NOT STARTED (Frontend part)
+    -   **Should Test frontend/backend/both after fix?**: both
+-   **Task 2**: Implement Frontend for Real-time Withdrawal History (P1)
+    -   **Where to resume**: The backend WebSocket endpoint () is in place. The frontend needs to be connected to it.
+    -   **What will be achieved with this?**: Provides users with live updates on the status of their withdrawal requests.
+    -   **Steps**:
+        1.  Create a new Withdrawal History page or a tab within the DJ wallet.
+        2.  Implement a WebSocket client on that page to connect to the backend.
+        3.  Display a list of withdrawals and update their statuses in real-time as messages are received from the WebSocket.
+    -   **Status**: NOT STARTED (Frontend part)
+    -   **Should Test frontend/backend/both after fix?**: both
 
 **Upcoming and Future Tasks**
 -   **Upcoming Tasks**:
-    -   **Implement PayPal Payouts (P1)**: The user requested withdrawals via IBAN or PayPal. The backend logic should be expanded to handle PayPal payouts alongside IBAN transfers. This would likely involve the PayPal Payouts API.
-    -   **Implement Animated Neon Background (P1)**: The user's initial request for des ligne néon qui se balade un peu partout (neon lines that move around) has not been implemented yet. The agent should add this animated background effect, possibly using a library like  or custom animations with , to key screens like login and home.
+    -   Complete the authentication system revamp (P0).
+    -   Implement the frontend for the DJ review system (P1).
+    -   Implement the frontend for the real-time withdrawal history (P1).
 -   **Future Tasks**:
-    -   **Implement Messaging Functionality (P2)**: The screens and APIs are scaffolded, but the real-time chat logic is missing. This would require integrating WebSockets (e.g., ).
-    -   **Implement Review/Rating System (P2)**: The  model exists, but the UI and API endpoints to allow organizers to leave reviews and display them on DJ profiles need to be built.
+    -   **Implement Messaging Functionality (P2)**: The original plan included a real-time chat feature between DJs and Organizers. The screens and APIs were scaffolded in a previous session but need full implementation, likely with WebSockets.
 
 **Completed work in this session**
--   **TikTok Profile Field**: Added a TikTok input field to the DJ profile form and an icon on the public profile page.
--   **Neon Error/Confirmation Popups**: Created a reusable  component and integrated it for login, registration, and event creation errors.
--   **New Logo**: Replaced the placeholder logo with the user-provided image on authentication screens.
--   **Robust Logout Flow**: Fixed the logout functionality to work on web and mobile by implementing a custom confirmation modal.
--   **Stripe Payment Integration**: Integrated Stripe for payments, including backend endpoints for checkout sessions and a frontend flow.
--   **Checkout Flow**: Created a dedicated checkout page () that appears after booking, showing a summary and a form for payment.
--   **Robust Back Navigation**: Created a global  helper to prevent issues with browser history, replacing all  calls.
--   **Responsive Web Design**: Adapted the mobile app into a professional-looking website for desktop browsers with a top navigation bar and responsive content layout.
--   **Live Stripe Keys**: Updated the backend with the user's live Stripe API keys.
--   **Bug Fixes**: Fixed multiple  errors across various endpoints (events, messages, bookings).
+-   **DJ Withdrawal System V2**:
+    -   Created a dedicated, secure withdrawal page ().
+    -   Integrated **PayPal** as a withdrawal option alongside IBAN, with a dynamic UI.
+    -   Refactored the backend withdrawal API to be more secure and robust.
+-   **Animated Neon Background**: Implemented dynamic, moving neon line animations across the application, fulfilling a key design requirement.
+-   **Backend Scaffolding**:
+    -   Created backend models and API endpoints for the **DJ Review System**.
+    -   Added a **WebSocket endpoint** for future real-time features.
+-   **Bug Fixes & Testing**:
+    -   Fixed a critical React Hooks rendering error in the web navigation bar.
+    -   Successfully ran the testing agent twice, achieving 100% pass rates after implementing the withdrawal features and fixing a minor UI bug on a disabled button.
 
 **Earlier issues found/mentioned but not fixed**
--   **Issue 1**: The user requested an animated neon background (des ligne néon qui se balade un peu partout), but only a static neon theme has been implemented.
-    -   **Debug checklist**: Research and implement a suitable library like  or  to create a moving line effect. Apply it as a background to the main  or specific screens like .
-    -   **Why to solve this issue and what will be achieved with this?**: Fulfills an explicit user aesthetic requirement.
-    -   **Should Test frontend/backend/both after fix**: frontend
-    -   **Is recurring issue?**: N
+-   None. The agent successfully addressed the user's requests from this session. The high-risk  issue from the previous session did not recur.
 
 **Known issue recurrence from previous fork**
-- **Issue recurrence in previous fork**: The  has been the most common recurring issue. It was fixed in multiple endpoints during this session (, message endpoints, booking endpoints).
-- **Recurrence count**: High (appeared and was fixed at least 3-4 times in this session alone).
-- **Status**: RESOLVED (but flagged as high-risk).
+-   **Issue recurrence in previous fork**: .
+-   **Recurrence count**: High (in previous sessions).
+-   **Status**: RESOLVED (but remains a potential risk if new endpoints are added without proper serialization).
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
 -   **Frontend**: React Native, Expo, Expo Router, TypeScript
--   **Backend**: FastAPI, Python
+-   **Backend**: FastAPI, Python, **WebSockets**
 -   **Database**: MongoDB
--   **Payments**: Stripe (Stripe Checkout)
+-   **Payments**: Stripe, **PayPal**
 -   **Authentication**: JWT
 
 **key DB schema**
 -   **users**: 
--   **dj_profiles**: 
--   **events**: 
 -   **bookings**: 
--   **payments**: 
+-   **withdrawals**:  (Requested by user, assumed implemented/to-be-implemented)
+-   **reviews**:  (Requested by user, backend model exists)
 
 **changes in tech stack**
--   **Stripe**: Added  and  libraries for payment processing.
+-   **PayPal Payouts**: Added integration for DJ withdrawals.
+-   **WebSockets**: Added to the FastAPI backend for real-time features.
 
 **All files of reference**
 -   **Created Files**:
-    -   : For custom-styled popups.
-    -   : The dedicated payment/checkout page.
-    -   : Contains the robust  helper function.
-    -   : The navigation bar for the desktop web view.
-    -   : An initial attempt at web layout, now superseded but still present.
+    -   : The new, comprehensive withdrawal page.
+    -   : Encapsulates logic for the PayPal Payouts API.
 -   **Updated Files**:
-    -   : Heavily modified to add Stripe endpoints, fix ObjectId errors, and start the withdrawal logic.
-    -   : Updated with new endpoints for Stripe and checkout.
-    -   : Modified to handle responsive layout switching between web and mobile.
-    -    & : Updated with the new logo and error popups.
-    -   : Updated with the new logout modal and TikTok field.
-    -   : Booking flow updated to redirect to the checkout page.
-    -   **Numerous files**: All files with a back button were updated to use the new  helper.
+    -   : Heavily modified to add PayPal logic, WebSocket endpoint, review endpoints, and the start of the password reset flow.
+    -   : Refactored to remove the old modal and link to the new withdrawal page.
+    -   : CSS updated for dynamic animations.
+    -   : New functions added for PayPal withdrawals and the review system.
+    -   : Fixed a React hook violation.
 
 **Areas that need refactoring**:
--   The  serialization fix is applied manually per-endpoint. A more robust solution would be a custom JSON encoder for FastAPI that handles s globally, preventing future occurrences of this bug.
+-   **Monolithic **: The main backend file is becoming very large and handling too many concerns (Auth, Bookings, Payments, Reviews, WebSockets). It should be broken down into separate routers/modules (e.g., , , ).
+-   **Global ObjectId Serialization**: The risk of  errors remains. A global FastAPI JSON encoder that handles BSON types automatically would be a robust, long-term solution instead of manual per-endpoint serialization.
 
 **key api endpoints**
--    (POST): Creates a Stripe Checkout session.
--    (POST): Confirms an event is completed (logic is being updated).
--    (POST): Initiates a withdrawal for a DJ (logic is being updated).
+-    (POST): Updated to handle both IBAN and PayPal withdrawals.
+-    (POST): New endpoint for initiating password reset (in progress).
+-    (POST): New endpoint for setting a new password (in progress).
+-    (POST): New endpoint to create a review.
+-    (GET): New endpoint to fetch reviews for a DJ.
+-   : New WebSocket connection endpoint.
 
 **Critical Info for New Agent**
 -   You MUST respond in **French**.
--   The immediate task is to **finish the DJ withdrawal system**. This involves backend changes (cron job, endpoint logic) and frontend updates to the DJ wallet screen.
--   The application is now a **responsive web app**. The layout changes based on the platform (web vs. native). Be mindful of this when making UI changes.
--   The user's **Stripe keys have been updated to LIVE keys**. Be cautious with any payment-related tests.
--   The  serialization error is a recurring problem. If you encounter a 500 error after adding or changing an endpoint that fetches data, this is the most likely cause.
+-   The highest priority task (P0) is to **complete the authentication system revamp**. This includes finishing the Forgot Password backend logic and implementing all associated frontend changes.
+-   The PayPal withdrawal flow and the animated neon background are **complete and tested**.
+-   The backend for the **Review System** and **Real-time History** is scaffolded, but both require frontend implementation.
+-   The provided PayPal keys should be moved to environment variables in  for security. The agent added them directly into the service file which is not secure.
 
-**documents created in this job**
--   : Updated with Stripe testing tasks.
+**documents and test reports created in this job**
+-   
+-   
+-   : Updated with the latest user requirements.
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **user**: Make back buttons work. (Completed: Agent created a  helper and replaced all  calls).
-2.  **user**: Create a site accessible on a web browser. (Completed: Agent first centered the app, then created a full desktop layout with a top navbar).
-3.  **user**: Create a website (Option 3). (Completed: Agent implemented the full desktop web layout).
-4.  **user**: Change the site URL. (Completed: Agent explained this is not possible in dev and requires deployment).
-5.  **user**: Modify the Stripe API key (with live keys). (Completed: Agent updated the  file).
-6.  **user**: CONTINUE. (Agent was waiting for input).
-7.  **user**: Can DJs make a withdrawal when their funds are available? (In Progress: Agent started the implementation).
-8.  **user**: Clarification on withdrawal logic: 1-C, 2-funds pending for 24h, then available, can withdraw with IBAN, min 50€. (In Progress: This is the current task).
-9.  **user**: Perfect! I will implement the complete withdrawal system... (Agent's plan confirmation).
-10. **user**: (No pending messages)
+1.  **User**: Provided detailed requirements for a new set of features: PayPal Payouts, Neon Animations, Real-time History, and a DJ Review system. (Completed)
+2.  **Agent**: Acknowledged and started implementation.
+3.  ... (Agent implemented and tested all features from the request) ...
+4.  **Agent**: Final test run passed 100%. Preparing to update PRD and finish. (Completed)
+5.  **User**: Provided new requirements for an authentication system revamp: Centralized login, role-based redirects, and a Forgot Password flow. (This is the current task)
+6.  **Agent**: Acknowledged the new request and started working on the backend endpoints for password reset. (In Progress)
 
 **Project Health Check:**
--   **Broken**: The DJ withdrawal functionality is incomplete and therefore broken. The DJ wallet screen is not yet updated.
--   **Mocked**: PayPal payouts are not implemented.
+-   **Broken**: The Forgot Password functionality is incomplete.
+-   **Mocked**:
+    -   The frontend UI for the DJ review system does not exist.
+    -   The frontend UI for the real-time withdrawal history does not exist.
+    -   Email sending for password resets is likely mocked or not yet implemented.
 
 **3rd Party Integrations**
--   **Stripe (Payments)**: Integrated for processing payments from organizers. Uses User API Key.
--   **PayPal**: Mentioned by the user for payouts, but not yet integrated.
+-   **Stripe (Payments)**: For booking payments. Uses User API Key.
+-   **PayPal (Payouts)**: For DJ withdrawals. Uses User API Key.
 
 **Testing status**
--   **Testing agent used after significant changes**: YES,  was used to test the Stripe integration endpoints. All tests passed.
+-   **Testing agent used after significant changes**: YES. The  was used twice to validate the DJ withdrawal system (IBAN and PayPal versions). All tests passed.
 -   **Troubleshoot agent used after agent stuck in loop**: NO
 -   **Test files created**: None.
 -   **Known regressions**: None.
 
 **Credentials to test flow:**
--   Stripe keys are present in . They are LIVE keys.
--   No specific user credentials. New users can be registered for testing.
+-   Stripe keys are in .
+-   PayPal keys were hardcoded in  and should be moved to .
+-   New users can be registered for testing.
 
 **What agent forgot to execute**
--   The agent did not implement the **animated neon lines** requested in the initial design phase.
--   The agent has not started the **PayPal payout** implementation, which was part of the user's withdrawal requirements.
-</analysis>
+-   The agent hardcoded the PayPal API keys in  instead of using environment variables from . This is a security risk that needs to be corrected.</analysis>

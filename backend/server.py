@@ -424,6 +424,96 @@ async def update_profile(
     updated_user = await db.users.find_one({"id": current_user["id"]})
     return serialize_doc({k: v for k, v in updated_user.items() if k != "password"})
 
+# ==================== PASSWORD RESET ROUTES ====================
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+class ResetPasswordRequest(BaseModel):
+    password: str
+
+import secrets
+
+def generate_reset_token() -> str:
+    """Generate a secure random token for password reset"""
+    return secrets.token_urlsafe(32)
+
+@api_router.post("/auth/forgot-password")
+async def forgot_password(request: ForgotPasswordRequest):
+    """
+    Request a password reset link.
+    Creates a reset token stored in the database.
+    In production, this would send an email with the reset link.
+    """
+    user = await db.users.find_one({"email": request.email})
+    
+    # Always return success to prevent email enumeration
+    if not user:
+        logger.info(f"Password reset requested for non-existent email: {request.email}")
+        return {"message": "Si cette adresse email existe, un lien de réinitialisation a été envoyé."}
+    
+    # Generate reset token
+    reset_token = generate_reset_token()
+    expires_at = datetime.utcnow() + timedelta(hours=1)  # Token valid for 1 hour
+    
+    # Store token in database
+    await db.password_resets.delete_many({"user_id": user["id"]})  # Remove old tokens
+    await db.password_resets.insert_one({
+        "id": str(uuid.uuid4()),
+        "user_id": user["id"],
+        "email": request.email,
+        "token": reset_token,
+        "expires_at": expires_at,
+        "used": False,
+        "created_at": datetime.utcnow()
+    })
+    
+    # In production, send email here
+    # For now, we log the token (MOCK - in production this would be an email)
+    logger.info(f"[MOCK EMAIL] Password reset token for {request.email}: {reset_token}")
+    
+    return {
+        "message": "Si cette adresse email existe, un lien de réinitialisation a été envoyé.",
+        # Include token in response for testing/development (remove in production)
+        "reset_token": reset_token,
+        "expires_in_minutes": 60
+    }
+
+@api_router.post("/auth/reset-password/{token}")
+async def reset_password(token: str, request: ResetPasswordRequest):
+    """
+    Reset password using a valid reset token.
+    """
+    if len(request.password) < 6:
+        raise HTTPException(status_code=400, detail="Le mot de passe doit contenir au moins 6 caractères.")
+    
+    # Find valid token
+    reset_record = await db.password_resets.find_one({
+        "token": token,
+        "used": False,
+        "expires_at": {"$gt": datetime.utcnow()}
+    })
+    
+    if not reset_record:
+        raise HTTPException(status_code=400, detail="Le lien de réinitialisation est invalide ou a expiré.")
+    
+    # Update user password
+    new_password_hash = hash_password(request.password)
+    await db.users.update_one(
+        {"id": reset_record["user_id"]},
+        {"$set": {"password": new_password_hash}}
+    )
+    
+    # Mark token as used
+    await db.password_resets.update_one(
+        {"token": token},
+        {"$set": {"used": True, "used_at": datetime.utcnow()}}
+    )
+    
+    logger.info(f"Password reset successful for user {reset_record['user_id']}")
+    
+    return {"message": "Votre mot de passe a été réinitialisé avec succès. Vous pouvez maintenant vous connecter."}
+
 # ==================== DJ PROFILE ROUTES ====================
 
 @api_router.post("/dj/profile")

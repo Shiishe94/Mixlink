@@ -183,6 +183,15 @@ export default function LoginScreen() {
                   )}
                 </LinearGradient>
               </TouchableOpacity>
+
+              {/* Forgot Password Link */}
+              <TouchableOpacity 
+                style={styles.forgotPasswordContainer}
+                onPress={() => router.push('/(auth)/forgot-password')}
+                data-testid="forgot-password-link"
+              >
+                <Text style={styles.forgotPasswordText}>Mot de passe oublié ?</Text>
+              </TouchableOpacity>
             </View>
 
             <View style={styles.footer}>
@@ -304,6 +313,19 @@ const styles = StyleSheet.create({
     color: '#fff',
     textTransform: 'uppercase',
     letterSpacing: 1,
+  },
+  forgotPasswordContainer: {
+    alignItems: 'center',
+    marginTop: 16,
+    paddingVertical: 8,
+  },
+  forgotPasswordText: {
+    fontSize: 14,
+    color: NEON_COLORS.magenta,
+    fontWeight: '500',
+    textShadowColor: NEON_COLORS.magenta,
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 5,
   },
   footer: {
     flexDirection: 'row',
