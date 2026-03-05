@@ -1,149 +1,160 @@
 # DJ Booking Platform - PRD
 
 ## Original Problem Statement
-Application mobile et web pour la réservation de DJs pour événements.
+Application mobile et web pour la réservation de DJs pour événements avec système de paiement complet.
 
 ### User Roles
-- **DJs**: Créent leur profil, gèrent leurs disponibilités, reçoivent des paiements
-- **Organisateurs**: Recherchent des DJs, créent des événements, effectuent des réservations
-- **Admin**: Gère les commissions et les transactions
+- **DJs**: Profil, disponibilités, retraits de fonds
+- **Organisateurs**: Recherche DJs, événements, réservations
+- **Admin**: Gestion commissions et transactions
 
 ### Core Features
-1. **Profils DJ**: Style musical, expérience, vidéos, réseaux sociaux (TikTok inclus)
-2. **Découverte**: Recherche et filtrage de DJs et événements
-3. **Réservation**: Flow complet de réservation avec page de checkout dédiée
-4. **Paiements**:
-   - Stripe pour les paiements organisateurs
-   - Commission 15% (7.5% DJ + 7.5% organisateur)
-   - Fonds en attente 24h après confirmation prestation
-   - Retrait minimum 50€ vers IBAN ou PayPal
-5. **Messagerie**: Communication DJ/Organisateurs
-6. **UI/UX**: Thème Neon avec fond sombre et animations électriques
+1. **Profils DJ**: Style musical, expérience, vidéos, TikTok
+2. **Découverte**: Recherche et filtrage DJs/événements
+3. **Réservation**: Flow complet avec checkout
+4. **Paiements**: Stripe, commission 15%, retraits IBAN/PayPal (min 50€)
+5. **Avis et Notes**: Système d'évaluation 1-5 étoiles
+6. **Messagerie**: Chat temps réel DJ ↔ Organisateur
+7. **UI/UX**: Thème Neon avec animations électriques
 
 ## Tech Stack
-- **Frontend**: React Native (Expo), TypeScript, Expo Router, react-native-reanimated
-- **Backend**: FastAPI, Python
+- **Frontend**: React Native (Expo), TypeScript, Expo Router
+- **Backend**: FastAPI, Python, WebSockets
 - **Database**: MongoDB
 - **Payments**: Stripe, PayPal Payouts
-- **Real-time**: WebSockets
 
-## Implemented Features
+---
 
-### ✅ Système de Réinitialisation de Mot de Passe (Mars 2025)
-- **Backend Endpoints**:
-  - `POST /api/auth/forgot-password` - Génère un token de reset (expire 1h)
-  - `POST /api/auth/reset-password/{token}` - Réinitialise le mot de passe
-- **Frontend Pages**:
-  - `/forgot-password` - Formulaire de demande de reset
-  - `/reset-password` - Formulaire de nouveau mot de passe
-- **Sécurité**:
-  - Token sécurisé avec expiration 1 heure
-  - Prévention réutilisation de token
-  - Message générique (anti-enumération email)
-  - Validation mot de passe minimum 6 caractères
-  - Indicateur de force du mot de passe
-- **MOCKED**: Envoi d'email (token retourné dans la réponse API pour tests)
+## Implemented Features (Mars 2025)
 
-### ✅ Page de Retrait Sécurisée avec PayPal
-- Choix méthode: Virement IBAN ou PayPal
-- Validation IBAN ISO 7064 Mod 97-10
-- Validation email PayPal
-- Minimum 50€ enforced
-- Confirmation popup avant envoi
-- Messages adaptés selon méthode
-- Design fintech moderne avec thème néon
+### ✅ Système de Réinitialisation de Mot de Passe
+- Endpoints: `/api/auth/forgot-password`, `/api/auth/reset-password/{token}`
+- Pages frontend: `/forgot-password`, `/reset-password`
+- Lien "Mot de passe oublié ?" sur login
+- Token sécurisé (1h expiration), anti-enumération
+- **MOCKED**: Envoi d'email simulé
 
-### ✅ Intégration PayPal Payouts
-- Service PayPal `/app/backend/services/paypal_service.py`
-- Authentification OAuth 2.0
-- Création de payouts instantanés
-- Mode sandbox configuré
-- Clés API stockées en variables d'environnement
+### ✅ Historique des Retraits en Temps Réel (P1)
+- Page `/dj/withdrawal-history` avec WebSocket
+- Indicateur de connexion WebSocket (vert/rouge)
+- Statistiques: total, complétés, en cours
+- Badges de statut colorés (en attente, en cours, effectué, rejeté)
+- Bouton "Temps réel" sur la page wallet
 
-### ✅ Animations Néon Électriques
-- Composant `NeonBackground` avec effets dynamiques
-- Lignes néon animées (react-native-reanimated)
-- Orbes lumineux pulsants (cyan, magenta, vert)
-- Effets électriques flash
-- Compatible mobile et web
-- Présent sur: login, register, withdrawal, forgot-password, reset-password
+### ✅ Messagerie Temps Réel (P2)
+- WebSocket intégré dans `/messages/[partnerId]`
+- Indicateur de statut en ligne
+- Messages instantanés via WebSocket
+- Fallback polling (10 secondes)
 
-### ✅ Système d'Avis et Notes
-- API POST /api/reviews - Créer un avis (1-5 étoiles)
-- API GET /api/reviews/dj/{dj_id} - Récupérer les avis
-- API GET /api/reviews/pending - Avis en attente
-- Commentaire optionnel
-- Note moyenne calculée automatiquement
-- Sécurité: réservation complétée requise
+### ✅ Refactoring Backend (Structure)
+- Dossier `/app/backend/routes/` créé
+- Dossier `/app/backend/models/` créé
+- Fichiers placeholder pour migration future
+- Logique principale encore dans `server.py`
 
-### ✅ WebSocket Real-time
-- Endpoint /ws/{user_id}
-- Mises à jour de statut de retrait
-- Ping/pong health check
-- Broadcast par utilisateur
-
-### Fonctionnalités Existantes
+### ✅ Fonctionnalités Existantes
 - Authentification JWT
-- Profils DJ avec réseaux sociaux (TikTok)
-- Système de réservation complet
-- Paiement Stripe intégré (clés LIVE)
-- Page wallet DJ avec solde disponible/en attente
-- Design responsive web/mobile
-- Navbar web pour desktop
+- Profils DJ complets
+- Système de réservation
+- Paiement Stripe
+- Retraits IBAN et PayPal
+- Système d'avis (backend + frontend)
+- Animations néon électriques
+
+---
 
 ## API Endpoints Clés
-- `POST /api/auth/forgot-password` - Demande reset mot de passe
-- `POST /api/auth/reset-password/{token}` - Réinitialiser mot de passe
-- `POST /api/dj/withdrawal` - Demande de retrait (IBAN ou PayPal)
-- `GET /api/dj/wallet` - Solde et gains
-- `GET /api/dj/withdrawals` - Historique retraits
-- `POST /api/reviews` - Créer un avis
-- `GET /api/reviews/dj/{dj_id}` - Avis d'un DJ
-- `WS /ws/{user_id}` - Connexion WebSocket
+| Endpoint | Description |
+|----------|-------------|
+| `POST /api/auth/forgot-password` | Demande reset mot de passe |
+| `POST /api/auth/reset-password/{token}` | Réinitialiser mot de passe |
+| `POST /api/dj/withdrawal` | Demande de retrait |
+| `GET /api/dj/withdrawals` | Historique des retraits |
+| `POST /api/messages` | Envoyer un message (+ broadcast WS) |
+| `POST /api/reviews` | Créer un avis |
+| `WS /ws/{user_id}` | Connexion WebSocket temps réel |
+
+---
 
 ## Files Reference
-- `/app/frontend/app/(auth)/login.tsx` - Page de connexion avec lien "Mot de passe oublié"
-- `/app/frontend/app/(auth)/forgot-password.tsx` - Page demande reset
-- `/app/frontend/app/(auth)/reset-password.tsx` - Page nouveau mot de passe
-- `/app/frontend/app/dj/withdrawal.tsx` - Page de retrait
-- `/app/frontend/app/dj/wallet.tsx` - Page portefeuille
-- `/app/frontend/src/components/NeonBackground.tsx` - Animations néon
-- `/app/backend/server.py` - API backend (endpoints auth, reset password, etc.)
-- `/app/backend/services/paypal_service.py` - Service PayPal
-- `/app/frontend/src/services/api.ts` - Client API
+| Fichier | Description |
+|---------|-------------|
+| `/app/frontend/app/dj/withdrawal-history.tsx` | Historique retraits temps réel |
+| `/app/frontend/app/dj/wallet.tsx` | Portefeuille DJ |
+| `/app/frontend/app/messages/[partnerId].tsx` | Chat temps réel |
+| `/app/frontend/app/(auth)/forgot-password.tsx` | Page mot de passe oublié |
+| `/app/frontend/app/(auth)/reset-password.tsx` | Page reset mot de passe |
+| `/app/backend/server.py` | API backend principale |
+| `/app/backend/routes/` | Structure pour refactoring |
+| `/app/backend/models/` | Modèles Pydantic centralisés |
 
-## Test Results (Iteration 3)
-- **Backend**: 100% (11/11 tests passed)
-- **Frontend**: 100% fonctionnel
-- **Test file**: `/app/backend/tests/test_password_reset.py`
+---
+
+## Test Results (Iteration 4)
+- **Backend**: 100% (13/13 tests passed)
+- **Frontend**: Pages fonctionnelles
+- **WebSocket**: Fonctionne en interne (localhost:8001)
+- **Note**: WSS externe retourne 502 (problème infrastructure Kubernetes)
 
 ## Test Credentials
 - Email: reset-test@djbooking.com
 - Password: newpassword123
-- Type: DJ (ou organizer pour tests)
+- Type: DJ
 
-## Configuration
-### PayPal (Sandbox)
-- Client ID: Configuré dans backend/.env
-- Secret: Configuré dans backend/.env
-- Mode: sandbox
+---
 
-### Stripe (Live)
-- API Key: Configuré dans backend/.env
-- Publishable Key: Configuré dans backend/.env
+## Known Issues
+| Issue | Statut | Note |
+|-------|--------|------|
+| WebSocket externe (WSS) | INFRASTRUCTURE | 502 via ingress, OK en interne |
+| Email password reset | MOCKED | Token retourné dans la réponse API |
+
+---
 
 ## Backlog / Future Tasks
 
-### P1 - En attente (Frontend à implémenter)
-- **Frontend Système d'Avis DJ**: Créer le formulaire de notation et affichage des avis sur profil DJ
-- **Frontend Historique Retraits Temps Réel**: Connecter WebSocket pour mises à jour live des statuts
+### P0 - Critique
+- Aucun
 
-### P2 - Futures tâches
-- Messagerie temps réel (WebSocket chat)
+### P1 - Important
+- ✅ ~~Historique retraits temps réel~~
+- ✅ ~~Messagerie temps réel~~
+
+### P2 - À venir
+- Migration du code `server.py` vers les modules `routes/`
+- Configuration ingress pour WebSocket externe
+
+### Futur
+- Envoi réel d'emails (SendGrid/Mailgun)
 - Notifications push
-- Panel admin pour gestion commissions
-- Envoi réel d'email pour password reset (supprimer le mock)
+- Panel admin complet
 
-### Refactoring suggéré
-- Décomposer `server.py` en modules séparés (auth.py, payments.py, reviews.py)
-- Ajouter encodeur JSON global pour ObjectId MongoDB
+---
+
+## Code Architecture
+```
+/app
+├── backend/
+│   ├── server.py              # API principale
+│   ├── routes/                # Structure pour refactoring
+│   │   ├── __init__.py
+│   │   ├── auth.py
+│   │   ├── messages.py
+│   │   └── ...
+│   ├── models/               # Modèles Pydantic
+│   │   └── __init__.py
+│   ├── services/
+│   │   └── paypal_service.py
+│   └── .env
+└── frontend/
+    ├── app/
+    │   ├── (auth)/           # Pages authentification
+    │   ├── (tabs)/           # Navigation principale
+    │   ├── dj/               # Pages DJ
+    │   ├── messages/         # Chat temps réel
+    │   └── booking/          # Réservations
+    └── src/
+        ├── components/       # Composants réutilisables
+        └── services/         # API client
+```
