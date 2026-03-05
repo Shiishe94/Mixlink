@@ -309,10 +309,20 @@ export default function WithdrawalScreen() {
             ]}
             onPress={handleSubmit}
             disabled={!walletData || walletData.wallet.available_balance < MINIMUM_WITHDRAWAL}
+            activeOpacity={(!walletData || walletData.wallet.available_balance < MINIMUM_WITHDRAWAL) ? 1 : 0.7}
             data-testid="submit-withdrawal-button"
           >
-            <Ionicons name="send" size={20} color="#fff" />
-            <Text style={styles.submitButtonText}>Demander le retrait</Text>
+            <Ionicons 
+              name="send" 
+              size={20} 
+              color={(!walletData || walletData.wallet.available_balance < MINIMUM_WITHDRAWAL) ? '#94A3B8' : '#fff'} 
+            />
+            <Text style={[
+              styles.submitButtonText,
+              (!walletData || walletData.wallet.available_balance < MINIMUM_WITHDRAWAL) && styles.submitButtonTextDisabled
+            ]}>
+              Demander le retrait
+            </Text>
           </TouchableOpacity>
 
           {/* Processing Info */}
@@ -595,11 +605,15 @@ const styles = StyleSheet.create({
   submitButtonDisabled: {
     backgroundColor: '#475569',
     shadowOpacity: 0,
+    opacity: 0.7,
   },
   submitButtonText: {
     fontSize: 16,
     fontWeight: '700',
     color: '#fff',
+  },
+  submitButtonTextDisabled: {
+    color: '#94A3B8',
   },
   infoCard: {
     flexDirection: 'row',
