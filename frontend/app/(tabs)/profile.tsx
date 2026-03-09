@@ -42,7 +42,7 @@ export default function ProfileScreen() {
   const [artistName, setArtistName] = useState('');
   const [bio, setBio] = useState('');
   const [city, setCity] = useState('');
-  const [hourlyRate, setHourlyRate] = useState('');
+  const [price, setPrice] = useState('');
   const [experienceYears, setExperienceYears] = useState('');
   const [equipment, setEquipment] = useState('');
   const [selectedStyles, setSelectedStyles] = useState<string[]>([]);
@@ -67,7 +67,7 @@ export default function ProfileScreen() {
           setArtistName(profile.artist_name);
           setBio(profile.bio);
           setCity(profile.city);
-          setHourlyRate(profile.hourly_rate.toString());
+          setPrice((profile.price || profile.hourly_rate || 0).toString());
           setExperienceYears(profile.experience_years.toString());
           setEquipment(profile.equipment || '');
           setSelectedStyles(profile.music_styles);
@@ -122,7 +122,7 @@ export default function ProfileScreen() {
   };
 
   const handleSaveDJProfile = async () => {
-    if (!artistName || !bio || !city || !hourlyRate || selectedStyles.length === 0) {
+    if (!artistName || !bio || !city || !price || selectedStyles.length === 0) {
       Alert.alert('Erreur', 'Veuillez remplir tous les champs obligatoires');
       return;
     }
@@ -133,7 +133,7 @@ export default function ProfileScreen() {
         artist_name: artistName,
         bio,
         city,
-        hourly_rate: parseFloat(hourlyRate),
+        price: parseFloat(price),
         experience_years: parseInt(experienceYears) || 0,
         equipment,
         music_styles: selectedStyles,
@@ -318,11 +318,11 @@ export default function ProfileScreen() {
                   <View style={styles.row}>
                     <View style={styles.halfInput}>
                       <Input
-                        label="Tarif horaire (€) *"
-                        value={hourlyRate}
-                        onChangeText={setHourlyRate}
+                        label="Prix de la prestation (€) *"
+                        value={price}
+                        onChangeText={setPrice}
                         keyboardType="numeric"
-                        placeholder="100"
+                        placeholder="500"
                       />
                     </View>
                     <View style={styles.halfInput}>
@@ -463,7 +463,7 @@ export default function ProfileScreen() {
                     <Text style={styles.djBio}>{djProfile.bio}</Text>
                     <View style={styles.djStats}>
                       <View style={styles.djStat}>
-                        <Text style={styles.djStatValue}>{djProfile.hourly_rate}€</Text>
+                        <Text style={styles.djStatValue}>{djProfile.price || djProfile.hourly_rate || 0}€</Text>
                         <Text style={styles.djStatLabel}>prestation</Text>
                       </View>
                       <View style={styles.djStat}>

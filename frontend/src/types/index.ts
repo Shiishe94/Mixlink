@@ -38,7 +38,7 @@ export interface DJProfile {
   music_styles: string[];
   event_types: string[];
   equipment?: string;
-  hourly_rate: number;
+  price: number;
   minimum_hours: number;
   travel_radius_km: number;
   city: string;

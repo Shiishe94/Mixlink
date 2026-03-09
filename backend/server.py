@@ -151,7 +151,7 @@ class DJProfileCreate(BaseModel):
     music_styles: List[str]
     event_types: List[str]
     equipment: Optional[str] = None
-    hourly_rate: float
+    price: float
     minimum_hours: int = 2
     travel_radius_km: int = 50
     city: str
@@ -329,11 +329,6 @@ class DJWithdrawalRequest(BaseModel):
     bank_details: Optional[Dict[str, Any]] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     processed_at: Optional[datetime] = None
-
-# Admin Login Model
-class AdminLogin(BaseModel):
-    email: EmailStr
-    password: str
 
 # ==================== AUTHENTICATION ====================
 
@@ -598,12 +593,12 @@ async def search_dj_profiles(
     if event_type:
         query["event_types"] = {"$in": [event_type]}
     if min_rate is not None:
-        query["hourly_rate"] = {"$gte": min_rate}
+        query["price"] = {"$gte": min_rate}
     if max_rate is not None:
-        if "hourly_rate" in query:
-            query["hourly_rate"]["$lte"] = max_rate
+        if "price" in query:
+            query["price"]["$lte"] = max_rate
         else:
-            query["hourly_rate"] = {"$lte": max_rate}
+            query["price"] = {"$lte": max_rate}
     if min_rating is not None:
         query["rating"] = {"$gte": min_rating}
     
@@ -1877,7 +1872,7 @@ async def match_djs_for_event(event_id: str, current_user: dict = Depends(get_cu
             score += 20
         
         # Budget matching
-        dj_rate = dj.get("hourly_rate", 0)
+        dj_rate = dj.get("price", 0)
         budget_max = event.get("budget_max", 0)
         if budget_max and dj_rate and dj_rate <= budget_max:
             score += 15
@@ -1907,232 +1902,6 @@ async def get_event_types():
 async def root():
     return {"message": "MixLink API", "version": "1.0"}
 
-# ==================== ADMIN ROUTES ====================
-
-@api_router.post("/admin/login")
-async def admin_login(credentials: AdminLogin):
-    if credentials.email != ADMIN_EMAIL or credentials.password != ADMIN_PASSWORD:
-        raise HTTPException(status_code=401, detail="Invalid admin credentials")
-    
-    token = create_token(f"admin_{ADMIN_EMAIL}")
-    return {
-        "access_token": token,
-        "token_type": "bearer",
-        "user": {
-            "email": ADMIN_EMAIL,
-            "is_admin": True
-        }
-    }
-
-async def get_admin_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    try:
-        payload = jwt.decode(credentials.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])
-        user_id = payload.get("user_id")
-        if not user_id or not user_id.startswith("admin_"):
-            raise HTTPException(status_code=401, detail="Admin access required")
-        return {"email": user_id.replace("admin_", ""), "is_admin": True}
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Token expired")
-    except jwt.InvalidTokenError:
-        raise HTTPException(status_code=401, detail="Invalid token")
-
-@api_router.get("/admin/dashboard")
-async def get_admin_dashboard(admin: dict = Depends(get_admin_user)):
-    # Get admin wallet
-    wallet = await db.admin_wallet.find_one({})
-    if not wallet:
-        wallet = {
-            "balance": 0.0,
-            "total_earned": 0.0,
-            "total_withdrawn": 0.0
-        }
-    
-    # Get statistics
-    total_users = await db.users.count_documents({})
-    total_djs = await db.users.count_documents({"user_type": "dj"})
-    total_organizers = await db.users.count_documents({"user_type": "organizer"})
-    total_bookings = await db.bookings.count_documents({})
-    total_paid_bookings = await db.bookings.count_documents({"status": "paid"})
-    total_events = await db.events.count_documents({})
-    
-    # Get recent commissions
-    recent_commissions = await db.commissions.find({}).sort("created_at", -1).limit(20).to_list(20)
-    
-    # Calculate total revenue
-    total_revenue = sum(c.get("total_commission", 0) for c in recent_commissions)
-    
-    return serialize_doc({
-        "wallet": {
-            "balance": wallet.get("balance", 0),
-            "total_earned": wallet.get("total_earned", 0),
-            "total_withdrawn": wallet.get("total_withdrawn", 0)
-        },
-        "statistics": {
-            "total_users": total_users,
-            "total_djs": total_djs,
-            "total_organizers": total_organizers,
-            "total_bookings": total_bookings,
-            "total_paid_bookings": total_paid_bookings,
-            "total_events": total_events,
-            "commission_rate": f"{COMMISSION_RATE * 100}%"
-        },
-        "recent_commissions": recent_commissions
-    })
-
-@api_router.get("/admin/commissions")
-async def get_all_commissions(
-    admin: dict = Depends(get_admin_user),
-    limit: int = 50,
-    skip: int = 0,
-    status: Optional[str] = None
-):
-    query = {}
-    if status:
-        query["status"] = status
-    
-    commissions = await db.commissions.find(query).sort("created_at", -1).skip(skip).limit(limit).to_list(limit)
-    
-    # Enrich with booking and user info
-    for commission in commissions:
-        booking = await db.bookings.find_one({"id": commission["booking_id"]})
-        if booking:
-            event = await db.events.find_one({"id": booking.get("event_id")})
-            commission["event_title"] = event.get("title") if event else "N/A"
-        
-        dj_profile = await db.dj_profiles.find_one({"id": commission["dj_id"]})
-        commission["dj_name"] = dj_profile.get("artist_name") if dj_profile else "N/A"
-        
-        organizer = await db.users.find_one({"id": commission["organizer_id"]})
-        if organizer:
-            commission["organizer_name"] = f"{organizer.get('first_name', '')} {organizer.get('last_name', '')}"
-    
-    total = await db.commissions.count_documents(query)
-    
-    return serialize_doc({
-        "commissions": commissions,
-        "total": total,
-        "limit": limit,
-        "skip": skip
-    })
-
-@api_router.get("/admin/users")
-async def get_all_users(
-    admin: dict = Depends(get_admin_user),
-    user_type: Optional[str] = None,
-    limit: int = 50,
-    skip: int = 0
-):
-    query = {}
-    if user_type:
-        query["user_type"] = user_type
-    
-    users = await db.users.find(query).sort("created_at", -1).skip(skip).limit(limit).to_list(limit)
-    
-    # Remove passwords and add DJ profiles if applicable
-    result = []
-    for user in users:
-        user_data = serialize_doc({k: v for k, v in user.items() if k != "password"})
-        if user.get("user_type") == "dj":
-            dj_profile = await db.dj_profiles.find_one({"user_id": user["id"]})
-            if dj_profile:
-                user_data["dj_profile"] = serialize_doc(dj_profile)
-        result.append(user_data)
-    
-    total = await db.users.count_documents(query)
-    
-    return {
-        "users": result,
-        "total": total,
-        "limit": limit,
-        "skip": skip
-    }
-
-@api_router.get("/admin/bookings")
-async def get_all_bookings(
-    admin: dict = Depends(get_admin_user),
-    status: Optional[str] = None,
-    limit: int = 50,
-    skip: int = 0
-):
-    query = {}
-    if status:
-        query["status"] = status
-    
-    bookings = await db.bookings.find(query).sort("created_at", -1).skip(skip).limit(limit).to_list(limit)
-    
-    # Enrich bookings
-    for booking in bookings:
-        event = await db.events.find_one({"id": booking.get("event_id")})
-        if event:
-            booking["event"] = serialize_doc(event)
-        
-        dj = await db.dj_profiles.find_one({"id": booking.get("dj_id")})
-        if dj:
-            booking["dj"] = {"artist_name": dj.get("artist_name")}
-        
-        organizer = await db.users.find_one({"id": booking.get("organizer_id")})
-        if organizer:
-            booking["organizer_name"] = f"{organizer.get('first_name', '')} {organizer.get('last_name', '')}"
-    
-    total = await db.bookings.count_documents(query)
-    
-    return serialize_doc({
-        "bookings": bookings,
-        "total": total,
-        "limit": limit,
-        "skip": skip
-    })
-
-@api_router.post("/admin/withdrawal")
-async def request_withdrawal(
-    amount: float,
-    bank_details: Dict[str, Any],
-    admin: dict = Depends(get_admin_user)
-):
-    # Check balance
-    wallet = await db.admin_wallet.find_one({})
-    if not wallet or wallet.get("balance", 0) < amount:
-        raise HTTPException(status_code=400, detail="Insufficient balance")
-    
-    # Create withdrawal request
-    withdrawal = {
-        "id": str(uuid.uuid4()),
-        "amount": amount,
-        "status": "pending",
-        "bank_details": bank_details,
-        "created_at": datetime.utcnow(),
-        "processed_at": None
-    }
-    
-    await db.withdrawals.insert_one(withdrawal)
-    
-    # Update wallet (deduct from balance)
-    await db.admin_wallet.update_one(
-        {"id": wallet["id"]},
-        {
-            "$inc": {"balance": -amount, "total_withdrawn": amount},
-            "$set": {"updated_at": datetime.utcnow()}
-        }
-    )
-    
-    return serialize_doc({
-        "withdrawal": withdrawal,
-        "message": "Withdrawal request submitted. Will be processed within 3-5 business days."
-    })
-
-@api_router.get("/admin/withdrawals")
-async def get_withdrawals(
-    admin: dict = Depends(get_admin_user),
-    limit: int = 20,
-    skip: int = 0
-):
-    withdrawals = await db.withdrawals.find({}).sort("created_at", -1).skip(skip).limit(limit).to_list(limit)
-    total = await db.withdrawals.count_documents({})
-    
-    return serialize_doc({
-        "withdrawals": withdrawals,
-        "total": total
-    })
 
 # ==================== WEBSOCKET MANAGEMENT ====================
 

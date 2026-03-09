@@ -82,7 +82,7 @@ export const DJCard: React.FC<DJCardProps> = ({ dj, onPress }) => {
         </View>
         
         <View style={styles.footer}>
-          <Text style={styles.rate}>{dj.hourly_rate}€<Text style={styles.rateLabel}>/h</Text></Text>
+          <Text style={styles.rate}>{dj.price}€<Text style={styles.rateLabel}> prestation</Text></Text>
           <Text style={styles.experience}>{dj.experience_years} ans exp.</Text>
         </View>
       </View>
