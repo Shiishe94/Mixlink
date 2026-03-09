@@ -42,10 +42,12 @@ export default function DJDetailScreen() {
     try {
       const [djRes, reviewsRes] = await Promise.all([
         djApi.getProfile(id!),
-        reviewApi.getByDJ(id!),
+        reviewApi.getByDJ(id!).catch(() => ({ data: { reviews: [] } })),
       ]);
       setDJ(djRes.data);
-      setReviews(reviewsRes.data);
+      // API returns { reviews: [], total: ... } so extract reviews array
+      const reviewsData = reviewsRes.data?.reviews || reviewsRes.data || [];
+      setReviews(Array.isArray(reviewsData) ? reviewsData : []);
 
       if (isOrganizer) {
         const eventsRes = await eventApi.getMy();

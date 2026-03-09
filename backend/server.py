@@ -1840,17 +1840,11 @@ async def match_djs_for_event(event_id: str, current_user: dict = Depends(get_cu
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
     
-    # Find matching DJs based on criteria
-    query = {
-        "city": {"$regex": event["city"], "$options": "i"},
-        "event_types": {"$in": [event["event_type"]]},
-        "music_styles": {"$in": event["music_styles"]},
-        "hourly_rate": {"$lte": event["budget_max"]}
-    }
-    
-    djs = await db.dj_profiles.find(query).sort("rating", -1).limit(20).to_list(20)
+    # Find all DJ profiles (don't filter by available since many don't have this field)
+    djs = await db.dj_profiles.find({}).sort("rating", -1).limit(50).to_list(50)
     
     # Add user info and calculate match score
+    result_djs = []
     for dj in djs:
         user = await db.users.find_one({"id": dj["user_id"]})
         if user:
@@ -1862,19 +1856,42 @@ async def match_djs_for_event(event_id: str, current_user: dict = Depends(get_cu
         
         # Calculate match score
         score = 0
-        style_matches = len(set(dj["music_styles"]) & set(event["music_styles"]))
-        score += style_matches * 10
-        if event["event_type"] in dj["event_types"]:
+        
+        # Music style matching
+        dj_styles = dj.get("music_styles", [])
+        event_styles = event.get("music_styles", [])
+        if dj_styles and event_styles:
+            style_matches = len(set(dj_styles) & set(event_styles))
+            score += style_matches * 15
+        
+        # City matching
+        dj_city = (dj.get("city") or "").lower()
+        event_city = (event.get("city") or "").lower()
+        if dj_city and event_city and dj_city == event_city:
+            score += 25
+        
+        # Event type matching
+        dj_event_types = dj.get("event_types", [])
+        event_type = event.get("event_type", "")
+        if event_type and dj_event_types and event_type in dj_event_types:
             score += 20
-        if dj["hourly_rate"] <= event["budget_max"]:
+        
+        # Budget matching
+        dj_rate = dj.get("hourly_rate", 0)
+        budget_max = event.get("budget_max", 0)
+        if budget_max and dj_rate and dj_rate <= budget_max:
             score += 15
-        score += dj.get("rating", 0) * 5
+        
+        # Rating bonus
+        score += (dj.get("rating", 0) or 0) * 5
+        
         dj["match_score"] = score
+        result_djs.append(dj)
     
-    # Sort by match score
-    djs.sort(key=lambda x: x["match_score"], reverse=True)
+    # Sort by match score and return top 20
+    result_djs.sort(key=lambda x: x.get("match_score", 0), reverse=True)
     
-    return serialize_doc(djs)
+    return serialize_doc(result_djs[:20])
 
 # ==================== CONFIG ROUTES ====================
 
