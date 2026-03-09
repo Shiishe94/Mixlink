@@ -1,28 +1,49 @@
 """
 Email Service for MixLink Platform
-Currently using MOCK implementation - ready for SendGrid integration
+Using Brevo (formerly Sendinblue) for transactional emails
 """
 
 import os
 import logging
-from typing import Optional
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
-# Configuration
-SENDGRID_API_KEY = os.environ.get('SENDGRID_API_KEY')
-SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'noreply@mixlink.com')
-EMAIL_MODE = os.environ.get('EMAIL_MODE', 'mock')  # 'mock' or 'sendgrid'
+# Configuration from environment
+BREVO_API_KEY = os.environ.get('BREVO_API_KEY')
+SENDER_EMAIL = os.environ.get('BREVO_SENDER_EMAIL', 'noreply@mixlink.fr')
+SENDER_NAME = os.environ.get('BREVO_SENDER_NAME', 'MixLink')
 
 
 class EmailService:
-    """Email service with mock and SendGrid support"""
+    """Email service using Brevo API for real email sending"""
     
     def __init__(self):
-        self.mode = EMAIL_MODE
-        self.sent_emails = []  # Store sent emails for debugging
+        self.api_key = BREVO_API_KEY
+        self.sender_email = SENDER_EMAIL
+        self.sender_name = SENDER_NAME
+        self.sent_emails = []
+        self._api_instance = None
         
+        # Initialize Brevo API if key is available
+        if self.api_key:
+            try:
+                import sib_api_v3_sdk
+                from sib_api_v3_sdk.rest import ApiException
+                
+                configuration = sib_api_v3_sdk.Configuration()
+                configuration.api_key['api-key'] = self.api_key
+                self._api_instance = sib_api_v3_sdk.TransactionalEmailsApi(
+                    sib_api_v3_sdk.ApiClient(configuration)
+                )
+                logger.info("Brevo email service initialized successfully")
+            except Exception as e:
+                logger.error(f"Failed to initialize Brevo: {e}")
+                self._api_instance = None
+        else:
+            logger.warning("BREVO_API_KEY not set - emails will be logged only")
+    
     async def send_email(
         self,
         to: str,
@@ -31,67 +52,73 @@ class EmailService:
         plain_content: Optional[str] = None
     ) -> dict:
         """
-        Send an email using configured method
-        Returns: dict with status and details
+        Send an email using Brevo API
+        Falls back to logging if Brevo is not configured
         """
         email_data = {
             "to": to,
             "subject": subject,
-            "html_content": html_content,
-            "plain_content": plain_content,
             "sent_at": datetime.utcnow().isoformat(),
-            "mode": self.mode
         }
         
-        if self.mode == 'sendgrid' and SENDGRID_API_KEY:
-            return await self._send_via_sendgrid(email_data)
+        if self._api_instance:
+            return await self._send_via_brevo(to, subject, html_content, plain_content)
         else:
-            return await self._send_mock(email_data)
+            return await self._send_mock(email_data, html_content)
     
-    async def _send_mock(self, email_data: dict) -> dict:
+    async def _send_via_brevo(
+        self,
+        to: str,
+        subject: str,
+        html_content: str,
+        plain_content: Optional[str] = None
+    ) -> dict:
+        """Send email via Brevo API"""
+        try:
+            import sib_api_v3_sdk
+            
+            send_smtp_email = sib_api_v3_sdk.SendSmtpEmail(
+                sender=sib_api_v3_sdk.SendSmtpEmailSender(
+                    name=self.sender_name,
+                    email=self.sender_email
+                ),
+                to=[sib_api_v3_sdk.SendSmtpEmailTo(email=to)],
+                subject=subject,
+                html_content=html_content,
+                text_content=plain_content
+            )
+            
+            response = self._api_instance.send_transac_email(send_smtp_email)
+            
+            logger.info(f"[BREVO] Email sent to {to} - Message ID: {response.message_id}")
+            
+            return {
+                "success": True,
+                "mode": "brevo",
+                "message_id": response.message_id,
+                "message": f"Email envoyé à {to}"
+            }
+            
+        except Exception as e:
+            logger.error(f"[BREVO ERROR] Failed to send email to {to}: {str(e)}")
+            return {
+                "success": False,
+                "mode": "brevo",
+                "error": str(e)
+            }
+    
+    async def _send_mock(self, email_data: dict, html_content: str) -> dict:
         """Mock email sending - logs to console"""
         self.sent_emails.append(email_data)
         logger.info(f"[MOCK EMAIL] To: {email_data['to']}")
         logger.info(f"[MOCK EMAIL] Subject: {email_data['subject']}")
-        logger.info(f"[MOCK EMAIL] Content preview: {email_data['html_content'][:200]}...")
         
         return {
             "success": True,
             "mode": "mock",
-            "message": "Email logged (mock mode)",
+            "message": "Email logged (Brevo not configured)",
             "email_id": f"mock_{len(self.sent_emails)}"
         }
-    
-    async def _send_via_sendgrid(self, email_data: dict) -> dict:
-        """Send email via SendGrid API"""
-        try:
-            from sendgrid import SendGridAPIClient
-            from sendgrid.helpers.mail import Mail
-            
-            message = Mail(
-                from_email=SENDER_EMAIL,
-                to_emails=email_data['to'],
-                subject=email_data['subject'],
-                html_content=email_data['html_content'],
-                plain_text_content=email_data.get('plain_content')
-            )
-            
-            sg = SendGridAPIClient(SENDGRID_API_KEY)
-            response = sg.send(message)
-            
-            return {
-                "success": response.status_code == 202,
-                "mode": "sendgrid",
-                "status_code": response.status_code,
-                "message": "Email sent via SendGrid"
-            }
-        except Exception as e:
-            logger.error(f"SendGrid error: {str(e)}")
-            return {
-                "success": False,
-                "mode": "sendgrid",
-                "error": str(e)
-            }
 
     # ==================== EMAIL TEMPLATES ====================
     
@@ -103,20 +130,25 @@ class EmailService:
         <!DOCTYPE html>
         <html>
         <head>
+            <meta charset="UTF-8">
             <style>
-                body {{ font-family: Arial, sans-serif; background: #0c0c0c; color: #fff; padding: 20px; }}
-                .container {{ max-width: 600px; margin: 0 auto; background: #1a1a2e; border-radius: 16px; padding: 30px; }}
+                body {{ font-family: 'Segoe UI', Arial, sans-serif; background: #0c0c0c; color: #fff; padding: 20px; margin: 0; }}
+                .container {{ max-width: 600px; margin: 0 auto; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border-radius: 16px; padding: 40px; border: 1px solid rgba(0, 206, 201, 0.2); }}
                 .header {{ text-align: center; margin-bottom: 30px; }}
-                .logo {{ font-size: 32px; font-weight: bold; background: linear-gradient(90deg, #00CEC9, #E056FD); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }}
-                .button {{ display: inline-block; background: linear-gradient(90deg, #00CEC9, #E056FD); color: #fff; padding: 15px 30px; border-radius: 8px; text-decoration: none; font-weight: bold; margin: 20px 0; }}
-                .footer {{ margin-top: 30px; text-align: center; color: #666; font-size: 12px; }}
-                .warning {{ background: #2d2d44; padding: 15px; border-radius: 8px; margin: 20px 0; }}
+                .logo {{ font-size: 36px; font-weight: bold; background: linear-gradient(90deg, #00CEC9, #E056FD); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }}
+                .button {{ display: inline-block; background: linear-gradient(90deg, #00CEC9, #E056FD); color: #fff !important; padding: 16px 32px; border-radius: 12px; text-decoration: none; font-weight: bold; margin: 24px 0; font-size: 16px; }}
+                .warning {{ background: rgba(224, 86, 253, 0.1); padding: 16px; border-radius: 12px; margin: 24px 0; border-left: 4px solid #E056FD; }}
+                .footer {{ margin-top: 40px; text-align: center; color: #888; font-size: 12px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 20px; }}
+                h2 {{ color: #fff; margin-bottom: 16px; }}
+                p {{ color: #ccc; line-height: 1.6; }}
+                .link {{ color: #00CEC9; word-break: break-all; }}
             </style>
         </head>
         <body>
             <div class="container">
                 <div class="header">
                     <div class="logo">MixLink</div>
+                    <p style="color: #888; margin-top: 8px;">La plateforme de réservation de DJs</p>
                 </div>
                 
                 <h2>Réinitialisation de mot de passe</h2>
@@ -133,10 +165,11 @@ class EmailService:
                 </div>
                 
                 <p>Ou copiez ce lien dans votre navigateur :</p>
-                <p style="word-break: break-all; color: #00CEC9;">{reset_url}</p>
+                <p class="link">{reset_url}</p>
                 
                 <div class="footer">
-                    <p>© 2025 MixLink Platform. Tous droits réservés.</p>
+                    <p>© 2025 MixLink. Tous droits réservés.</p>
+                    <p>Cet email a été envoyé automatiquement, merci de ne pas y répondre.</p>
                 </div>
             </div>
         </body>
@@ -161,17 +194,20 @@ class EmailService:
         <!DOCTYPE html>
         <html>
         <head>
+            <meta charset="UTF-8">
             <style>
-                body {{ font-family: Arial, sans-serif; background: #0c0c0c; color: #fff; padding: 20px; }}
-                .container {{ max-width: 600px; margin: 0 auto; background: #1a1a2e; border-radius: 16px; padding: 30px; }}
+                body {{ font-family: 'Segoe UI', Arial, sans-serif; background: #0c0c0c; color: #fff; padding: 20px; margin: 0; }}
+                .container {{ max-width: 600px; margin: 0 auto; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border-radius: 16px; padding: 40px; border: 1px solid rgba(0, 206, 201, 0.2); }}
                 .header {{ text-align: center; margin-bottom: 30px; }}
-                .logo {{ font-size: 32px; font-weight: bold; background: linear-gradient(90deg, #00CEC9, #E056FD); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }}
-                .details {{ background: #2d2d44; padding: 20px; border-radius: 8px; margin: 20px 0; }}
-                .detail-row {{ display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #3d3d5c; }}
+                .logo {{ font-size: 36px; font-weight: bold; background: linear-gradient(90deg, #00CEC9, #E056FD); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }}
+                .details {{ background: rgba(0, 206, 201, 0.1); padding: 24px; border-radius: 12px; margin: 24px 0; }}
+                .detail-row {{ display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.1); }}
                 .detail-label {{ color: #888; }}
                 .detail-value {{ color: #00CEC9; font-weight: bold; }}
-                .price {{ font-size: 24px; color: #00B894; text-align: center; margin: 20px 0; }}
-                .footer {{ margin-top: 30px; text-align: center; color: #666; font-size: 12px; }}
+                .price {{ font-size: 32px; color: #00B894; text-align: center; margin: 24px 0; font-weight: bold; }}
+                .footer {{ margin-top: 40px; text-align: center; color: #888; font-size: 12px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 20px; }}
+                h2 {{ color: #fff; margin-bottom: 16px; }}
+                p {{ color: #ccc; line-height: 1.6; }}
             </style>
         </head>
         <body>
@@ -193,22 +229,22 @@ class EmailService:
                     </div>
                     <div class="detail-row">
                         <span class="detail-label">DJ</span>
-                        <span class="detail-value">{dj_name}</span>
+                        <span class="detail-value">🎵 {dj_name}</span>
                     </div>
                     <div class="detail-row">
                         <span class="detail-label">N° Réservation</span>
-                        <span class="detail-value">{booking_id[:8]}...</span>
+                        <span class="detail-value">{booking_id[:8].upper()}</span>
                     </div>
                 </div>
                 
                 <div class="price">
-                    Montant total : {price:.2f}€
+                    {price:.2f}€
                 </div>
                 
-                <p>Vous pouvez contacter le DJ via la messagerie de l'application.</p>
+                <p>Vous pouvez contacter le DJ via la messagerie de l'application MixLink.</p>
                 
                 <div class="footer">
-                    <p>© 2025 MixLink Platform. Tous droits réservés.</p>
+                    <p>© 2025 MixLink. Tous droits réservés.</p>
                 </div>
             </div>
         </body>
@@ -240,8 +276,16 @@ class EmailService:
             "rejected": "rejeté"
         }
         
+        status_color = {
+            "pending": "#F39C12",
+            "processing": "#00CEC9",
+            "completed": "#00B894",
+            "rejected": "#E74C3C"
+        }
+        
         emoji = status_emoji.get(status, "📧")
         text = status_text.get(status, status)
+        color = status_color.get(status, "#00CEC9")
         
         subject = f"{emoji} Retrait {text} - {amount:.2f}€"
         
@@ -249,16 +293,19 @@ class EmailService:
         <!DOCTYPE html>
         <html>
         <head>
+            <meta charset="UTF-8">
             <style>
-                body {{ font-family: Arial, sans-serif; background: #0c0c0c; color: #fff; padding: 20px; }}
-                .container {{ max-width: 600px; margin: 0 auto; background: #1a1a2e; border-radius: 16px; padding: 30px; }}
+                body {{ font-family: 'Segoe UI', Arial, sans-serif; background: #0c0c0c; color: #fff; padding: 20px; margin: 0; }}
+                .container {{ max-width: 600px; margin: 0 auto; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border-radius: 16px; padding: 40px; border: 1px solid rgba(0, 206, 201, 0.2); }}
                 .header {{ text-align: center; margin-bottom: 30px; }}
-                .logo {{ font-size: 32px; font-weight: bold; background: linear-gradient(90deg, #00CEC9, #E056FD); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }}
-                .status-box {{ background: #2d2d44; padding: 20px; border-radius: 8px; text-align: center; margin: 20px 0; }}
-                .amount {{ font-size: 36px; color: #00B894; margin: 10px 0; }}
-                .status {{ font-size: 18px; color: {'#00B894' if status == 'completed' else '#F39C12' if status in ['pending', 'processing'] else '#E74C3C'}; }}
-                .details {{ margin: 20px 0; }}
-                .footer {{ margin-top: 30px; text-align: center; color: #666; font-size: 12px; }}
+                .logo {{ font-size: 36px; font-weight: bold; background: linear-gradient(90deg, #00CEC9, #E056FD); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }}
+                .status-box {{ background: rgba(0, 0, 0, 0.3); padding: 32px; border-radius: 16px; text-align: center; margin: 24px 0; }}
+                .amount {{ font-size: 48px; color: #00B894; margin: 16px 0; font-weight: bold; }}
+                .status {{ font-size: 20px; color: {color}; font-weight: bold; }}
+                .details {{ margin: 24px 0; }}
+                .footer {{ margin-top: 40px; text-align: center; color: #888; font-size: 12px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 20px; }}
+                h2 {{ color: #fff; margin-bottom: 16px; }}
+                p {{ color: #ccc; line-height: 1.6; }}
             </style>
         </head>
         <body>
@@ -279,10 +326,10 @@ class EmailService:
                     {f'<p><strong>Transaction ID :</strong> {transaction_id}</p>' if transaction_id else ''}
                 </div>
                 
-                <p>Consultez votre historique de retraits dans l'application pour plus de détails.</p>
+                <p>Consultez votre historique de retraits dans l'application MixLink pour plus de détails.</p>
                 
                 <div class="footer">
-                    <p>© 2025 MixLink Platform. Tous droits réservés.</p>
+                    <p>© 2025 MixLink. Tous droits réservés.</p>
                 </div>
             </div>
         </body>
@@ -306,14 +353,18 @@ class EmailService:
         <!DOCTYPE html>
         <html>
         <head>
+            <meta charset="UTF-8">
             <style>
-                body {{ font-family: Arial, sans-serif; background: #0c0c0c; color: #fff; padding: 20px; }}
-                .container {{ max-width: 600px; margin: 0 auto; background: #1a1a2e; border-radius: 16px; padding: 30px; }}
+                body {{ font-family: 'Segoe UI', Arial, sans-serif; background: #0c0c0c; color: #fff; padding: 20px; margin: 0; }}
+                .container {{ max-width: 600px; margin: 0 auto; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border-radius: 16px; padding: 40px; border: 1px solid rgba(224, 86, 253, 0.3); }}
                 .header {{ text-align: center; margin-bottom: 30px; }}
-                .logo {{ font-size: 32px; font-weight: bold; background: linear-gradient(90deg, #00CEC9, #E056FD); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }}
-                .button {{ display: inline-block; background: linear-gradient(90deg, #00CEC9, #E056FD); color: #fff; padding: 15px 30px; border-radius: 8px; text-decoration: none; font-weight: bold; }}
-                .details {{ background: #2d2d44; padding: 20px; border-radius: 8px; margin: 20px 0; }}
-                .footer {{ margin-top: 30px; text-align: center; color: #666; font-size: 12px; }}
+                .logo {{ font-size: 36px; font-weight: bold; background: linear-gradient(90deg, #00CEC9, #E056FD); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }}
+                .highlight {{ background: linear-gradient(90deg, rgba(224, 86, 253, 0.2), rgba(0, 206, 201, 0.2)); padding: 24px; border-radius: 12px; margin: 24px 0; text-align: center; }}
+                .price {{ font-size: 36px; color: #00B894; font-weight: bold; }}
+                .details {{ background: rgba(0, 0, 0, 0.2); padding: 20px; border-radius: 12px; margin: 24px 0; }}
+                .footer {{ margin-top: 40px; text-align: center; color: #888; font-size: 12px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 20px; }}
+                h2 {{ color: #fff; margin-bottom: 16px; }}
+                p {{ color: #ccc; line-height: 1.6; }}
             </style>
         </head>
         <body>
@@ -324,18 +375,80 @@ class EmailService:
                 
                 <h2>🎵 Nouvelle demande de réservation !</h2>
                 
-                <p>Vous avez reçu une nouvelle demande de réservation de <strong>{organizer_name}</strong>.</p>
+                <p>Vous avez reçu une nouvelle demande de réservation de <strong style="color: #E056FD;">{organizer_name}</strong>.</p>
                 
                 <div class="details">
                     <p><strong>Événement :</strong> {event_title}</p>
                     <p><strong>Date :</strong> {event_date}</p>
-                    <p><strong>Cachet proposé :</strong> {price:.2f}€</p>
                 </div>
                 
-                <p>Connectez-vous à l'application pour accepter ou refuser cette demande.</p>
+                <div class="highlight">
+                    <p style="margin: 0; color: #888;">Cachet proposé</p>
+                    <div class="price">{price:.2f}€</div>
+                </div>
+                
+                <p>Connectez-vous à l'application MixLink pour accepter ou refuser cette demande.</p>
                 
                 <div class="footer">
-                    <p>© 2025 MixLink Platform. Tous droits réservés.</p>
+                    <p>© 2025 MixLink. Tous droits réservés.</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        
+        return await self.send_email(to, subject, html_content)
+    
+    async def send_new_review_notification(
+        self,
+        to: str,
+        reviewer_name: str,
+        rating: int,
+        comment: Optional[str] = None
+    ) -> dict:
+        """Send notification to DJ when they receive a new review"""
+        stars = "⭐" * rating
+        subject = f"📝 Nouvel avis {stars} sur MixLink"
+        
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <style>
+                body {{ font-family: 'Segoe UI', Arial, sans-serif; background: #0c0c0c; color: #fff; padding: 20px; margin: 0; }}
+                .container {{ max-width: 600px; margin: 0 auto; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border-radius: 16px; padding: 40px; border: 1px solid rgba(0, 206, 201, 0.2); }}
+                .header {{ text-align: center; margin-bottom: 30px; }}
+                .logo {{ font-size: 36px; font-weight: bold; background: linear-gradient(90deg, #00CEC9, #E056FD); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }}
+                .rating-box {{ background: rgba(243, 156, 18, 0.1); padding: 24px; border-radius: 12px; text-align: center; margin: 24px 0; }}
+                .stars {{ font-size: 36px; }}
+                .comment {{ background: rgba(0, 0, 0, 0.2); padding: 20px; border-radius: 12px; margin: 24px 0; font-style: italic; color: #ccc; }}
+                .footer {{ margin-top: 40px; text-align: center; color: #888; font-size: 12px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 20px; }}
+                h2 {{ color: #fff; margin-bottom: 16px; }}
+                p {{ color: #ccc; line-height: 1.6; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <div class="logo">MixLink</div>
+                </div>
+                
+                <h2>📝 Nouvel avis reçu !</h2>
+                
+                <p><strong style="color: #00CEC9;">{reviewer_name}</strong> vous a laissé un avis :</p>
+                
+                <div class="rating-box">
+                    <div class="stars">{stars}</div>
+                    <p style="margin: 8px 0 0 0; color: #F39C12;">{rating}/5</p>
+                </div>
+                
+                {f'<div class="comment">"{comment}"</div>' if comment else ''}
+                
+                <p>Continuez à offrir d'excellentes prestations pour maintenir votre réputation sur MixLink !</p>
+                
+                <div class="footer">
+                    <p>© 2025 MixLink. Tous droits réservés.</p>
                 </div>
             </div>
         </body>

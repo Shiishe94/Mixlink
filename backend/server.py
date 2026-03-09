@@ -443,7 +443,7 @@ async def forgot_password(request: ForgotPasswordRequest):
     """
     Request a password reset link.
     Creates a reset token stored in the database.
-    In production, this would send an email with the reset link.
+    Sends email via Brevo.
     """
     user = await db.users.find_one({"email": request.email})
     
@@ -468,15 +468,22 @@ async def forgot_password(request: ForgotPasswordRequest):
         "created_at": datetime.utcnow()
     })
     
-    # In production, send email here
-    # For now, we log the token (MOCK - in production this would be an email)
-    logger.info(f"[MOCK EMAIL] Password reset token for {request.email}: {reset_token}")
+    # Send email via Brevo
+    from services.email_service import email_service
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://neon-dj-connect.preview.emergentagent.com')
+    reset_url = f"{frontend_url}/(auth)/reset-password?token={reset_token}"
+    
+    email_result = await email_service.send_password_reset(
+        to=request.email,
+        reset_token=reset_token,
+        reset_url=reset_url
+    )
+    
+    logger.info(f"Password reset email sent to {request.email}: {email_result}")
     
     return {
         "message": "Si cette adresse email existe, un lien de réinitialisation a été envoyé.",
-        # Include token in response for testing/development (remove in production)
-        "reset_token": reset_token,
-        "expires_in_minutes": 60
+        "email_sent": email_result.get("success", False)
     }
 
 @api_router.post("/auth/reset-password/{token}")
