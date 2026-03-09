@@ -67,7 +67,7 @@ export default function ProfileScreen() {
           setArtistName(profile.artist_name);
           setBio(profile.bio);
           setCity(profile.city);
-          setPrice((profile.price || profile.hourly_rate || 0).toString());
+          setPrice((profile.price || 0).toString());
           setExperienceYears(profile.experience_years.toString());
           setEquipment(profile.equipment || '');
           setSelectedStyles(profile.music_styles);
@@ -463,7 +463,7 @@ export default function ProfileScreen() {
                     <Text style={styles.djBio}>{djProfile.bio}</Text>
                     <View style={styles.djStats}>
                       <View style={styles.djStat}>
-                        <Text style={styles.djStatValue}>{djProfile.price || djProfile.hourly_rate || 0}€</Text>
+                        <Text style={styles.djStatValue}>{djProfile.price || 0}€</Text>
                         <Text style={styles.djStatLabel}>prestation</Text>
                       </View>
                       <View style={styles.djStat}>
