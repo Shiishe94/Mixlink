@@ -470,7 +470,7 @@ async def forgot_password(request: ForgotPasswordRequest):
     
     # Send email via Brevo
     from services.email_service import email_service
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://neon-dj-connect.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://dj-connect-12.preview.emergentagent.com')
     reset_url = f"{frontend_url}/(auth)/reset-password?token={reset_token}"
     
     email_result = await email_service.send_password_reset(

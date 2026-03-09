@@ -8,7 +8,7 @@ import os
 import uuid
 from datetime import datetime
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://neon-dj-connect.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://dj-connect-12.preview.emergentagent.com')
 
 # Test user credentials - uses existing test user from context
 TEST_USER_EMAIL = "reset-test@mixlink.com"

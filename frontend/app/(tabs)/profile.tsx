@@ -464,7 +464,7 @@ export default function ProfileScreen() {
                     <View style={styles.djStats}>
                       <View style={styles.djStat}>
                         <Text style={styles.djStatValue}>{djProfile.hourly_rate}€</Text>
-                        <Text style={styles.djStatLabel}>/ heure</Text>
+                        <Text style={styles.djStatLabel}>prestation</Text>
                       </View>
                       <View style={styles.djStat}>
                         <Text style={styles.djStatValue}>{djProfile.rating.toFixed(1)}</Text>

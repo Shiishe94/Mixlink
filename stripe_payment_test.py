@@ -7,7 +7,7 @@ import uuid
 import time
 
 # Base URL from environment
-BASE_URL = "https://neon-dj-connect.preview.emergentagent.com/api"
+BASE_URL = "https://dj-connect-12.preview.emergentagent.com/api"
 
 # Test data with unique emails
 timestamp = str(int(time.time()))

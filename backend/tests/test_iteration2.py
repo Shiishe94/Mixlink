@@ -8,7 +8,7 @@ import os
 import uuid
 from datetime import datetime
 
-BASE_URL = os.environ.get('EXPO_PUBLIC_BACKEND_URL', 'https://neon-dj-connect.preview.emergentagent.com')
+BASE_URL = os.environ.get('EXPO_PUBLIC_BACKEND_URL', 'https://dj-connect-12.preview.emergentagent.com')
 
 # Test data
 TEST_DJ_EMAIL = f"test_dj_{uuid.uuid4().hex[:8]}@test.com"

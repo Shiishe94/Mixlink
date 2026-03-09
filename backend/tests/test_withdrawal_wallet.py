@@ -9,7 +9,7 @@ import pytest
 import requests
 import os
 
-BASE_URL = os.environ.get('EXPO_PUBLIC_BACKEND_URL', 'https://neon-dj-connect.preview.emergentagent.com')
+BASE_URL = os.environ.get('EXPO_PUBLIC_BACKEND_URL', 'https://dj-connect-12.preview.emergentagent.com')
 
 # Test credentials
 TEST_DJ_EMAIL = "dj-test@example.com"

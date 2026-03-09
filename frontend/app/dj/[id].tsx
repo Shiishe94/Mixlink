@@ -69,7 +69,8 @@ export default function DJDetailScreen() {
 
     setBookingLoading(true);
     try {
-      const proposedRate = dj!.hourly_rate * 4;
+      // Use the DJ's fixed price for a performance
+      const proposedRate = dj!.hourly_rate || dj!.price || 200;
       const response = await bookingApi.create({
         dj_id: id,
         event_id: selectedEvent.id,
@@ -192,8 +193,8 @@ export default function DJDetailScreen() {
           {/* Stats */}
           <View style={styles.statsRow}>
             <View style={styles.stat}>
-              <Text style={styles.statValue}>{dj.hourly_rate}€</Text>
-              <Text style={styles.statLabel}>/ heure</Text>
+              <Text style={styles.statValue}>{dj.hourly_rate || dj.price || 0}€</Text>
+              <Text style={styles.statLabel}>prestation</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.stat}>

@@ -3,7 +3,7 @@ import requests
 import json
 
 # Base URL from environment
-BASE_URL = "https://neon-dj-connect.preview.emergentagent.com/api"
+BASE_URL = "https://dj-connect-12.preview.emergentagent.com/api"
 
 # Quick debug test to check the specific failing scenarios
 def debug_stripe_issues():
