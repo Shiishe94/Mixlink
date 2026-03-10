@@ -33,7 +33,7 @@ interface WalletData {
 
 const MINIMUM_WITHDRAWAL = 50;
 
-const ORIGIN_URL = process.env.EXPO_PUBLIC_BACKEND_URL?.replace('/api', '') || 'https://dj-connect-12.preview.emergentagent.com';
+const ORIGIN_URL = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://dj-connect-12.preview.emergentagent.com';
 
 export default function DJWalletScreen() {
   const [loading, setLoading] = useState(true);
