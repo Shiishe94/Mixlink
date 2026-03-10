@@ -8,6 +8,8 @@ import {
   Alert,
   ActivityIndicator,
   RefreshControl,
+  Linking,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -31,6 +33,8 @@ interface WalletData {
 
 const MINIMUM_WITHDRAWAL = 50;
 
+const ORIGIN_URL = process.env.EXPO_PUBLIC_BACKEND_URL?.replace('/api', '') || 'https://dj-connect-12.preview.emergentagent.com';
+
 export default function DJWalletScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -38,6 +42,7 @@ export default function DJWalletScreen() {
   const [activeTab, setActiveTab] = useState('wallet');
   const [earnings, setEarnings] = useState<any[]>([]);
   const [withdrawals, setWithdrawals] = useState<any[]>([]);
+  const [featuredLoading, setFeaturedLoading] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -68,6 +73,26 @@ export default function DJWalletScreen() {
 
   const navigateToWithdrawal = () => {
     router.push('/dj/withdrawal');
+  };
+
+  const handleFeaturedPurchase = async () => {
+    try {
+      setFeaturedLoading(true);
+      const originUrl = 'https://dj-connect-12.preview.emergentagent.com';
+      const res = await djWalletApi.createFeaturedCheckout(originUrl);
+      const { url } = res.data;
+      if (url) {
+        if (Platform.OS === 'web') {
+          window.location.href = url;
+        } else {
+          await Linking.openURL(url);
+        }
+      }
+    } catch (err: any) {
+      Alert.alert('Erreur', err?.response?.data?.detail || 'Impossible de créer la session de paiement.');
+    } finally {
+      setFeaturedLoading(false);
+    }
   };
 
   if (loading) {
@@ -192,6 +217,48 @@ export default function DJWalletScreen() {
                 <Text style={styles.statValue}>{walletData.wallet.total_withdrawn.toFixed(2)}€</Text>
                 <Text style={styles.statLabel}>Total retiré</Text>
               </View>
+            </View>
+
+            {/* DJ Vedette Section */}
+            <View style={styles.featuredCard} data-testid="featured-dj-section">
+              <View style={styles.featuredHeader}>
+                <View style={styles.featuredBadge}>
+                  <Ionicons name="star" size={20} color="#f59e0b" />
+                  <Text style={styles.featuredBadgeText}>DJ VEDETTE</Text>
+                </View>
+                <Text style={styles.featuredPrice}>49€ / 30 jours</Text>
+              </View>
+              <Text style={styles.featuredTitle}>Apparaissez en tête des recherches</Text>
+              <Text style={styles.featuredDesc}>
+                Votre profil sera mis en avant pour tous les organisateurs. Badge exclusif visible sur votre fiche DJ.
+              </Text>
+              <View style={styles.featuredPerks}>
+                {[
+                  'Position n°1 dans les résultats',
+                  'Badge doré "Vedette" visible',
+                  'Visibilité maximale pendant 30 jours',
+                ].map((perk, i) => (
+                  <View key={i} style={styles.featuredPerk}>
+                    <Ionicons name="checkmark-circle" size={16} color="#22c55e" />
+                    <Text style={styles.featuredPerkText}>{perk}</Text>
+                  </View>
+                ))}
+              </View>
+              <TouchableOpacity
+                data-testid="featured-dj-buy-btn"
+                style={styles.featuredButton}
+                onPress={handleFeaturedPurchase}
+                disabled={featuredLoading}
+              >
+                {featuredLoading ? (
+                  <ActivityIndicator size="small" color="#000" />
+                ) : (
+                  <>
+                    <Ionicons name="star" size={18} color="#000" />
+                    <Text style={styles.featuredButtonText}>Devenir Vedette — 49€</Text>
+                  </>
+                )}
+              </TouchableOpacity>
             </View>
           </>
         )}
@@ -541,5 +608,80 @@ const styles = StyleSheet.create({
   },
   bottomPadding: {
     height: 40,
+  },
+  // DJ Vedette styles
+  featuredCard: {
+    backgroundColor: '#1a1508',
+    borderRadius: 20,
+    padding: 20,
+    marginTop: 20,
+    marginBottom: 20,
+    borderWidth: 1.5,
+    borderColor: '#f59e0b',
+  },
+  featuredHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  featuredBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(245,158,11,0.2)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+    gap: 5,
+  },
+  featuredBadgeText: {
+    color: '#f59e0b',
+    fontWeight: '800',
+    fontSize: 11,
+    letterSpacing: 1,
+  },
+  featuredPrice: {
+    color: '#f59e0b',
+    fontWeight: '700',
+    fontSize: 16,
+  },
+  featuredTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#fff',
+    marginBottom: 8,
+  },
+  featuredDesc: {
+    fontSize: 14,
+    color: '#9ca3af',
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  featuredPerks: {
+    gap: 8,
+    marginBottom: 20,
+  },
+  featuredPerk: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  featuredPerkText: {
+    color: '#e5e7eb',
+    fontSize: 14,
+  },
+  featuredButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f59e0b',
+    paddingVertical: 14,
+    borderRadius: 50,
+    gap: 8,
+  },
+  featuredButtonText: {
+    color: '#000',
+    fontWeight: '700',
+    fontSize: 15,
   },
 });

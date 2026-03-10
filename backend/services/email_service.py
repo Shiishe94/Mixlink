@@ -457,6 +457,53 @@ class EmailService:
         
         return await self.send_email(to, subject, html_content)
 
+    async def send_email_verification(self, to: str, first_name: str, verify_url: str) -> bool:
+        """Send email verification link to new user"""
+        subject = "MixLink - Vérifiez votre adresse email"
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <style>
+                body {{ font-family: 'Helvetica Neue', Arial, sans-serif; background-color: #0a0a0f; color: #e0e0e0; margin: 0; padding: 20px; }}
+                .container {{ max-width: 600px; margin: 0 auto; background-color: #111118; border-radius: 12px; overflow: hidden; border: 1px solid #1e1e2e; }}
+                .header {{ background: linear-gradient(135deg, #7c3aed, #4f46e5); padding: 40px 30px; text-align: center; }}
+                .header h1 {{ color: #fff; margin: 0; font-size: 28px; font-weight: 800; letter-spacing: 2px; }}
+                .header p {{ color: rgba(255,255,255,0.8); margin: 8px 0 0; font-size: 14px; }}
+                .body {{ padding: 40px 30px; }}
+                .body h2 {{ color: #fff; font-size: 22px; margin-bottom: 16px; }}
+                .body p {{ color: #b0b0c0; line-height: 1.6; font-size: 15px; }}
+                .button {{ display: block; width: fit-content; margin: 30px auto; background: linear-gradient(135deg, #7c3aed, #4f46e5); color: #fff !important; text-decoration: none; padding: 16px 40px; border-radius: 50px; font-weight: 700; font-size: 16px; text-align: center; }}
+                .note {{ background: rgba(124, 58, 237, 0.1); border-left: 3px solid #7c3aed; padding: 12px 16px; border-radius: 4px; margin-top: 24px; }}
+                .note p {{ color: #a89bca; font-size: 13px; margin: 0; }}
+                .footer {{ text-align: center; padding: 20px; color: #555; font-size: 12px; border-top: 1px solid #1e1e2e; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>MixLink</h1>
+                    <p>La plateforme des DJs professionnels</p>
+                </div>
+                <div class="body">
+                    <h2>Bonjour {first_name} !</h2>
+                    <p>Bienvenue sur <strong>MixLink</strong> ! Merci de vous être inscrit(e).</p>
+                    <p>Pour activer votre compte et accéder à toutes les fonctionnalités, veuillez vérifier votre adresse email en cliquant sur le bouton ci-dessous :</p>
+                    <a href="{verify_url}" class="button">Vérifier mon email</a>
+                    <div class="note">
+                        <p>Si vous n'avez pas créé de compte MixLink, ignorez cet email. Le lien expire dans 48h.</p>
+                    </div>
+                </div>
+                <div class="footer">
+                    <p>© 2025 MixLink. Tous droits réservés.</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        return await self.send_email(to, subject, html_content)
+
 
 # Singleton instance
 email_service = EmailService()

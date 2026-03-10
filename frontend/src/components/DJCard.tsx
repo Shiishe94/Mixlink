@@ -45,6 +45,12 @@ export const DJCard: React.FC<DJCardProps> = ({ dj, onPress }) => {
             <Ionicons name="checkmark-circle" size={20} color={NEON_COLORS.success} />
           </View>
         )}
+        {dj.is_featured && (
+          <View style={styles.featuredBadge}>
+            <Ionicons name="star" size={13} color="#000" />
+            <Text style={styles.featuredBadgeText}>VEDETTE</Text>
+          </View>
+        )}
         <LinearGradient
           colors={['transparent', 'rgba(10, 10, 15, 0.9)']}
           style={styles.imageOverlay}
@@ -137,6 +143,24 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.6,
     shadowRadius: 8,
+  },
+  featuredBadge: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    backgroundColor: '#f59e0b',
+    borderRadius: 20,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  featuredBadgeText: {
+    color: '#000',
+    fontWeight: '800',
+    fontSize: 10,
+    letterSpacing: 0.5,
   },
   content: {
     padding: 16,

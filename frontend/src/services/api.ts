@@ -103,7 +103,16 @@ export const djWalletApi = {
     });
   },
   getWithdrawals: () => api.get('/dj/withdrawals'),
+  // DJ Vedette (Featured)
+  createFeaturedCheckout: (originUrl: string) =>
+    api.post('/dj/feature/checkout', { origin_url: originUrl }),
+  checkFeaturedStatus: (sessionId: string) =>
+    api.get(`/dj/feature/status/${sessionId}`),
 };
+
+// Auth email verification
+export const verifyEmail = (token: string) =>
+  api.get(`/auth/verify-email/${token}`);
 
 // Message API
 export const messageApi = {

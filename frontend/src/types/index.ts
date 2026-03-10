@@ -53,6 +53,8 @@ export interface DJProfile {
   created_at: string;
   updated_at: string;
   is_verified: boolean;
+  is_featured?: boolean;
+  featured_until?: string;
   user?: {
     first_name: string;
     last_name: string;

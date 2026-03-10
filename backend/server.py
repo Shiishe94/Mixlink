@@ -170,6 +170,8 @@ class DJProfile(DJProfileCreate):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     is_verified: bool = False
+    is_featured: bool = False
+    featured_until: Optional[datetime] = None
 
 # Availability Models
 class AvailabilitySlot(BaseModel):
@@ -361,7 +363,7 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
 # ==================== AUTH ROUTES ====================
 
 @api_router.post("/auth/register")
-async def register(user_data: UserCreate):
+async def register(user_data: UserCreate, request: Request):
     # Check if email exists
     existing = await db.users.find_one({"email": user_data.email})
     if existing:
@@ -373,14 +375,49 @@ async def register(user_data: UserCreate):
     user_dict["id"] = str(uuid.uuid4())
     user_dict["created_at"] = datetime.utcnow()
     user_dict["is_active"] = True
+    user_dict["is_email_verified"] = False
+    
+    # Generate email verification token
+    verify_token = secrets.token_urlsafe(32)
+    user_dict["email_verify_token"] = verify_token
     
     await db.users.insert_one(user_dict)
     
+    # Send verification email (non-blocking)
+    try:
+        from services.email_service import email_service
+        origin = request.headers.get("origin") or request.headers.get("referer", "").split("/")[0:3]
+        if isinstance(origin, list):
+            origin = "/".join(origin)
+        if not origin:
+            origin = "https://dj-connect-12.preview.emergentagent.com"
+        verify_url = f"{origin}/verify-email?token={verify_token}"
+        await email_service.send_email_verification(
+            to=user_data.email,
+            first_name=user_data.first_name,
+            verify_url=verify_url
+        )
+    except Exception as e:
+        logger.warning(f"Could not send verification email: {e}")
+    
     # Remove password from response
-    user_response = serialize_doc({k: v for k, v in user_dict.items() if k != "password"})
+    user_response = serialize_doc({k: v for k, v in user_dict.items() if k not in ("password", "email_verify_token")})
     
     token = create_token(user_dict["id"])
     return {"access_token": token, "token_type": "bearer", "user": user_response}
+
+@api_router.get("/auth/verify-email/{token}")
+async def verify_email(token: str):
+    """Verify user email with the token sent by email"""
+    user = await db.users.find_one({"email_verify_token": token})
+    if not user:
+        raise HTTPException(status_code=400, detail="Token invalide ou expiré")
+    
+    await db.users.update_one(
+        {"id": user["id"]},
+        {"$set": {"is_email_verified": True}, "$unset": {"email_verify_token": ""}}
+    )
+    return {"message": "Email vérifié avec succès ! Vous pouvez maintenant utiliser toutes les fonctionnalités."}
 
 @api_router.post("/auth/login")
 async def login(credentials: UserLogin):
@@ -603,6 +640,16 @@ async def search_dj_profiles(
         query["rating"] = {"$gte": min_rating}
     
     profiles = await db.dj_profiles.find(query).skip(skip).limit(limit).to_list(limit)
+    
+    # Sort: featured DJs first (active only), then by rating
+    from datetime import timezone
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    def sort_key(p):
+        featured_active = p.get("is_featured", False) and (
+            p.get("featured_until") is None or p.get("featured_until") > now
+        )
+        return (0 if featured_active else 1, -p.get("rating", 0))
+    profiles.sort(key=sort_key)
     
     # Add user info to each profile
     result = []
@@ -1040,7 +1087,99 @@ async def create_stripe_checkout(
     return {"url": session.url, "session_id": session.session_id}
 
 
-@api_router.get("/payments/stripe/status/{session_id}")
+# ==================== DJ VEDETTE ROUTES ====================
+
+FEATURED_DJ_PRICE = 49.0  # 49€ for 30 days of featuring
+FEATURED_DJ_DURATION_DAYS = 30
+
+class FeaturedCheckoutRequest(BaseModel):
+    origin_url: str
+
+@api_router.post("/dj/feature/checkout")
+async def create_featured_dj_checkout(
+    data: FeaturedCheckoutRequest,
+    request: Request,
+    current_user: dict = Depends(get_current_user)
+):
+    """Create a Stripe checkout for DJ featured listing (49€/30 days)"""
+    if current_user.get("user_type") != "dj":
+        raise HTTPException(status_code=403, detail="Seuls les DJs peuvent s'abonner à la mise en avant")
+    
+    dj_profile = await db.dj_profiles.find_one({"user_id": current_user["id"]})
+    if not dj_profile:
+        raise HTTPException(status_code=404, detail="Profil DJ introuvable")
+    
+    host_url = str(request.base_url)
+    webhook_url = f"{host_url}api/webhook/stripe"
+    stripe_checkout = StripeCheckout(api_key=STRIPE_API_KEY, webhook_url=webhook_url)
+    
+    success_url = f"{data.origin_url}/payment/feature-success?session_id={{CHECKOUT_SESSION_ID}}"
+    cancel_url = f"{data.origin_url}/dj/wallet"
+    
+    checkout_request = CheckoutSessionRequest(
+        amount=FEATURED_DJ_PRICE,
+        currency="eur",
+        success_url=success_url,
+        cancel_url=cancel_url,
+        metadata={
+            "dj_id": dj_profile["id"],
+            "user_id": current_user["id"],
+            "payment_type": "featured_dj",
+            "duration_days": str(FEATURED_DJ_DURATION_DAYS)
+        }
+    )
+    
+    session = await stripe_checkout.create_checkout_session(checkout_request)
+    
+    # Store transaction
+    transaction = {
+        "id": str(uuid.uuid4()),
+        "session_id": session.session_id,
+        "checkout_url": session.url,
+        "dj_id": dj_profile["id"],
+        "user_id": current_user["id"],
+        "amount": FEATURED_DJ_PRICE,
+        "currency": "eur",
+        "payment_type": "featured_dj",
+        "payment_status": "initiated",
+        "created_at": datetime.utcnow()
+    }
+    await db.payment_transactions.insert_one(transaction)
+    
+    return {"url": session.url, "session_id": session.session_id, "amount": FEATURED_DJ_PRICE}
+
+@api_router.get("/dj/feature/status/{session_id}")
+async def get_featured_dj_status(
+    session_id: str,
+    request: Request,
+    current_user: dict = Depends(get_current_user)
+):
+    """Check and activate featured DJ status after payment"""
+    host_url = str(request.base_url)
+    webhook_url = f"{host_url}api/webhook/stripe"
+    stripe_checkout = StripeCheckout(api_key=STRIPE_API_KEY, webhook_url=webhook_url)
+    
+    checkout_status = await stripe_checkout.get_checkout_status(session_id)
+    
+    if checkout_status.payment_status == "paid":
+        transaction = await db.payment_transactions.find_one({"session_id": session_id})
+        if transaction and transaction.get("payment_status") != "paid":
+            from datetime import timezone, timedelta
+            featured_until = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=FEATURED_DJ_DURATION_DAYS)
+            
+            await db.dj_profiles.update_one(
+                {"id": transaction["dj_id"]},
+                {"$set": {"is_featured": True, "featured_until": featured_until}}
+            )
+            await db.payment_transactions.update_one(
+                {"session_id": session_id},
+                {"$set": {"payment_status": "paid"}}
+            )
+    
+    return {
+        "status": checkout_status.payment_status,
+        "is_active": checkout_status.payment_status == "paid"
+    }
 async def get_stripe_payment_status(
     session_id: str,
     request: Request,
