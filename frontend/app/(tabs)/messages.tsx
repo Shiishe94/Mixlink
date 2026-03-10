@@ -22,19 +22,22 @@ export default function MessagesScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const loadConversations = async () => {
+  const loadConversations = async (silent = false) => {
     try {
       const res = await messageApi.getConversations();
       setConversations(res.data);
     } catch (error) {
       console.error('Error loading conversations:', error);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
     loadConversations();
+    // Polling toutes les 10 secondes
+    const interval = setInterval(() => loadConversations(true), 10000);
+    return () => clearInterval(interval);
   }, []);
 
   const onRefresh = async () => {

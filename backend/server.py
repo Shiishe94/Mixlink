@@ -787,7 +787,7 @@ async def get_events(
         query["city"] = {"$regex": city, "$options": "i"}
     
     events = await db.events.find(query).sort("date", 1).skip(skip).limit(limit).to_list(limit)
-    return events
+    return [serialize_doc(e) for e in events]
 
 @api_router.get("/events/my")
 async def get_my_events(current_user: dict = Depends(get_current_user)):
@@ -826,7 +826,7 @@ async def update_event(
         raise HTTPException(status_code=403, detail="Not authorized to update this event")
     
     await db.events.update_one({"id": event_id}, {"$set": updates})
-    return await db.events.find_one({"id": event_id})
+    return await db.events.find_one({"id": event_id}, {"_id": 0})
 
 @api_router.delete("/events/{event_id}")
 async def delete_event(event_id: str, current_user: dict = Depends(get_current_user)):

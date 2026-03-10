@@ -29,20 +29,25 @@ export default function BookingsScreen() {
   const [activeTab, setActiveTab] = useState('all');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-  const loadBookings = async () => {
+  const loadBookings = async (silent = false) => {
     try {
       const res = await bookingApi.getMy();
       setBookings(res.data);
+      setLastUpdated(new Date());
     } catch (error) {
       console.error('Error loading bookings:', error);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
     loadBookings();
+    // Polling toutes les 15 secondes
+    const interval = setInterval(() => loadBookings(true), 15000);
+    return () => clearInterval(interval);
   }, []);
 
   const onRefresh = async () => {
@@ -70,6 +75,10 @@ export default function BookingsScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Réservations</Text>
+        <View style={styles.liveIndicator}>
+          <View style={styles.liveDot} />
+          <Text style={styles.liveText}>En direct</Text>
+        </View>
       </View>
 
       <ScrollView
@@ -135,6 +144,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 16,
   },
@@ -142,6 +154,26 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: '700',
     color: '#fff',
+  },
+  liveIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(34,197,94,0.12)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+  },
+  liveDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: '#22c55e',
+  },
+  liveText: {
+    color: '#22c55e',
+    fontSize: 12,
+    fontWeight: '600',
   },
   tabsContainer: {
     maxHeight: 50,

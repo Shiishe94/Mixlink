@@ -30,93 +30,29 @@ export default function ChatScreen() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [partnerInfo, setPartnerInfo] = useState<any>(null);
-  const [wsConnected, setWsConnected] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
-  const wsRef = useRef<WebSocket | null>(null);
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Connect to WebSocket for real-time messages
-  const connectWebSocket = useCallback(() => {
-    if (!user?.id) return;
-
-    const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
-    const wsUrl = API_URL.replace('https://', 'wss://').replace('http://', 'ws://');
-    const fullWsUrl = `${wsUrl}/ws/${user.id}`;
-
-    console.log('Connecting to WebSocket:', fullWsUrl);
-
-    try {
-      wsRef.current = new WebSocket(fullWsUrl);
-
-      wsRef.current.onopen = () => {
-        console.log('Chat WebSocket connected');
-        setWsConnected(true);
-      };
-
-      wsRef.current.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          console.log('Chat WebSocket message:', data);
-
-          if (data.type === 'new_message' && data.message) {
-            // Only add if the message is from/to our conversation partner
-            if (data.message.sender_id === partnerId || data.message.receiver_id === partnerId) {
-              setMessages((prev) => {
-                // Avoid duplicates
-                if (prev.some((m) => m.id === data.message.id)) return prev;
-                return [...prev, data.message];
-              });
-              // Scroll to bottom
-              setTimeout(() => {
-                scrollViewRef.current?.scrollToEnd({ animated: true });
-              }, 100);
-            }
-          }
-        } catch (e) {
-          console.error('Error parsing WebSocket message:', e);
-        }
-      };
-
-      wsRef.current.onerror = (error) => {
-        console.error('Chat WebSocket error:', error);
-        setWsConnected(false);
-      };
-
-      wsRef.current.onclose = () => {
-        console.log('Chat WebSocket disconnected');
-        setWsConnected(false);
-        // Attempt to reconnect after 5 seconds
-        reconnectTimeoutRef.current = setTimeout(() => {
-          connectWebSocket();
-        }, 5000);
-      };
-    } catch (error) {
-      console.error('Error creating WebSocket:', error);
-    }
-  }, [user?.id, partnerId]);
+  const lastMessageCountRef = useRef(0);
 
   useEffect(() => {
     loadMessages();
-    connectWebSocket();
+    // Polling toutes les 5 secondes pour un effet quasi temps réel
+    const interval = setInterval(() => loadMessages(true), 5000);
+    return () => clearInterval(interval);
+  }, [partnerId]);
 
-    // Fallback: Poll every 10 seconds in case WebSocket fails
-    const interval = setInterval(loadMessages, 10000);
-    
-    return () => {
-      clearInterval(interval);
-      if (wsRef.current) {
-        wsRef.current.close();
-      }
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
-      }
-    };
-  }, [partnerId, connectWebSocket]);
-
-  const loadMessages = async () => {
+  const loadMessages = async (silent = false) => {
     try {
       const res = await messageApi.getMessages(partnerId!);
-      setMessages(res.data);
+      const newMessages = res.data;
+      
+      // Auto-scroll uniquement si nouveaux messages
+      if (newMessages.length > lastMessageCountRef.current) {
+        setMessages(newMessages);
+        lastMessageCountRef.current = newMessages.length;
+        setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+      } else {
+        setMessages(newMessages);
+      }
       
       // Get partner info from conversations
       const convRes = await messageApi.getConversations();
@@ -130,7 +66,7 @@ export default function ChatScreen() {
     } catch (error) {
       console.error('Error loading messages:', error);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -230,20 +166,20 @@ export default function ChatScreen() {
               ) : (
                 <Ionicons name="person" size={20} color="#636E72" />
               )}
-              {/* Online indicator */}
-              <View style={[styles.onlineIndicator, wsConnected && styles.onlineIndicatorActive]} />
+              {/* Live indicator */}
+              <View style={[styles.onlineIndicator, styles.onlineIndicatorActive]} />
             </View>
             <View style={styles.headerTextContainer}>
               <Text style={styles.headerName} numberOfLines={1}>
                 {partnerInfo?.name || 'Conversation'}
               </Text>
               <Text style={styles.headerStatus}>
-                {wsConnected ? 'En direct' : 'Hors ligne'}
+                En direct
               </Text>
             </View>
           </View>
           <View style={styles.headerRight}>
-            <View style={[styles.wsStatusDot, wsConnected && styles.wsStatusDotConnected]} />
+            <View style={[styles.wsStatusDot, styles.wsStatusDotConnected]} />
           </View>
         </View>
 
